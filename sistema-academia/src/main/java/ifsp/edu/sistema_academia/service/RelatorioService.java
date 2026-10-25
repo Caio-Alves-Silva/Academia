@@ -8,8 +8,8 @@ import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Mensalidade;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
-import ifsp.edu.sistema_academia.model.Usuario;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.CheckinRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
@@ -60,7 +60,7 @@ public class RelatorioService {
     public List<InadimplenteResponse> inadimplentes() {
         LocalDate hoje = LocalDate.now(clock);
         Map<Long, List<Mensalidade>> porAluno = new LinkedHashMap<>();
-        for (Mensalidade m : mensalidadeRepository.findVencidas(StatusMensalidade.PENDENTE, hoje)) {
+        for (Mensalidade m : mensalidadeRepository.findVencidas(StatusPagamento.PENDENTE, hoje)) {
             porAluno.computeIfAbsent(m.getMatricula().getAluno().getId(), id -> new ArrayList<>()).add(m);
         }
         return porAluno.values().stream()
@@ -122,8 +122,8 @@ public class RelatorioService {
     }
 
     private InadimplenteResponse montarInadimplente(List<Mensalidade> vencidas, LocalDate hoje) {
-        Usuario aluno = vencidas.get(0).getMatricula().getAluno();
-        BigDecimal principal = vencidas.stream().map(Mensalidade::valorLiquido)
+        Aluno aluno = vencidas.get(0).getMatricula().getAluno();
+        BigDecimal principal = vencidas.stream().map(Mensalidade::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal multa = vencidas.stream().map(m -> m.calcularMulta(hoje))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

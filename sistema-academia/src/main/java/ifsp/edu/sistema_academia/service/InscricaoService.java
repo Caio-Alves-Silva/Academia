@@ -12,16 +12,16 @@ import ifsp.edu.sistema_academia.exception.MatriculaNaoAtivaException;
 import ifsp.edu.sistema_academia.exception.ModalidadeNaoIncluidaException;
 import ifsp.edu.sistema_academia.exception.PrazoCancelamentoExpiradoException;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
+import ifsp.edu.sistema_academia.exception.RegraNegocioException;
 import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Inscricao;
 import ifsp.edu.sistema_academia.model.Matricula;
-import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.Presenca;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
-import ifsp.edu.sistema_academia.model.Usuario;
+import ifsp.edu.sistema_academia.model.StatusPresenca;
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.util.Semana;
 import org.springframework.stereotype.Service;
@@ -48,16 +48,16 @@ public class InscricaoService {
 
     private final InscricaoRepository inscricaoRepository;
     private final AulaColetivaRepository aulaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final AlunoRepository alunoRepository;
     private final SituacaoAlunoService situacaoAlunoService;
     private final Clock clock;
 
     public InscricaoService(InscricaoRepository inscricaoRepository, AulaColetivaRepository aulaRepository,
-                            UsuarioRepository usuarioRepository, SituacaoAlunoService situacaoAlunoService,
+                            AlunoRepository alunoRepository, SituacaoAlunoService situacaoAlunoService,
                             Clock clock) {
         this.inscricaoRepository = inscricaoRepository;
         this.aulaRepository = aulaRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.alunoRepository = alunoRepository;
         this.situacaoAlunoService = situacaoAlunoService;
         this.clock = clock;
     }
@@ -67,11 +67,14 @@ public class InscricaoService {
         LocalDateTime agora = LocalDateTime.now(clock);
         LocalDate data = request.data();
 
-        Usuario aluno = usuarioRepository.findByIdAndPerfilForUpdate(usuario.id(), Perfil.ALUNO)
+        Aluno aluno = alunoRepository.findByIdForUpdate(usuario.id())
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", usuario.id()));
         AulaColetiva aula = aulaRepository.findByIdForUpdate(aulaId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aula", aulaId));
 
+        if (!aula.isAtiva()) {
+            throw new RegraNegocioException("A aula " + aulaId + " está inativa");
+        }
         validarDataDaAula(aula, data, agora);
 
         Matricula matricula = situacaoAlunoService.exigirLiberado(aluno.getId());
@@ -85,12 +88,12 @@ public class InscricaoService {
         }
         validarLimiteSemanal(aluno.getId(), matricula, data);
 
-        if (inscricaoRepository.existsByAulaIdAndAlunoIdAndDataAulaAndStatusIn(
+        if (inscricaoRepository.existsByAulaColetivaIdAndAlunoIdAndDataAulaAndStatusIn(
                 aulaId, aluno.getId(), data, StatusInscricao.VIGENTES)) {
             throw new InscricaoDuplicadaException();
         }
 
-        long confirmadas = inscricaoRepository.countByAulaIdAndDataAulaAndStatus(
+        long confirmadas = inscricaoRepository.countByAulaColetivaIdAndDataAulaAndStatus(
                 aulaId, data, StatusInscricao.CONFIRMADA);
         StatusInscricao status = confirmadas < aula.getCapacidade()
                 ? StatusInscricao.CONFIRMADA
@@ -134,7 +137,7 @@ public class InscricaoService {
     @Transactional(readOnly = true)
     public List<InscricaoResponse> listarPorAluno(Long alunoId, UsuarioAutenticado solicitante) {
         solicitante.exigirAcessoAoAluno(alunoId);
-        usuarioRepository.findByIdAndPerfil(alunoId, Perfil.ALUNO)
+        alunoRepository.findById(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
         return inscricaoRepository.findByAlunoIdOrderByDataAulaDescIdDesc(alunoId).stream()
                 .map(this::toResponse)
@@ -148,13 +151,13 @@ public class InscricaoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aula", aulaId));
         exigirDiaDaSemana(aula, data);
         return inscricaoRepository
-                .findByAulaIdAndDataAulaAndStatusInOrderByIdAsc(aulaId, data, StatusInscricao.VIGENTES).stream()
+                .findByAulaColetivaIdAndDataAulaAndStatusInOrderByCriadaEmAscIdAsc(aulaId, data, StatusInscricao.VIGENTES).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     private Inscricao promoverPrimeiroDaFila(Long aulaId, LocalDate data) {
-        List<Inscricao> fila = inscricaoRepository.findByAulaIdAndDataAulaAndStatusOrderByIdAsc(
+        List<Inscricao> fila = inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
                 aulaId, data, StatusInscricao.LISTA_ESPERA);
         for (Inscricao candidata : fila) {
             if (situacaoAlunoService.podeFrequentar(candidata.getAluno().getId())) {
@@ -189,7 +192,7 @@ public class InscricaoService {
     private void validarFaltasDaSemanaAnterior(Long alunoId, LocalDate data) {
         Semana anterior = Semana.de(data).anterior();
         long faltas = inscricaoRepository.countByAlunoIdAndDataAulaBetweenAndPresenca(
-                alunoId, anterior.inicio(), anterior.fim(), Presenca.FALTA);
+                alunoId, anterior.inicio(), anterior.fim(), StatusPresenca.FALTA);
         if (faltas >= FALTAS_PARA_BLOQUEIO) {
             throw new BloqueioPorFaltasException(faltas);
         }
@@ -208,9 +211,11 @@ public class InscricaoService {
     private InscricaoResponse toResponse(Inscricao inscricao) {
         Long posicao = null;
         if (inscricao.getStatus() == StatusInscricao.LISTA_ESPERA) {
-            posicao = inscricaoRepository.countByAulaIdAndDataAulaAndStatusAndIdLessThanEqual(
-                    inscricao.getAula().getId(), inscricao.getDataAula(), StatusInscricao.LISTA_ESPERA,
-                    inscricao.getId());
+            List<Inscricao> fila = inscricaoRepository
+                    .findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
+                            inscricao.getAulaColetiva().getId(), inscricao.getDataAula(),
+                            StatusInscricao.LISTA_ESPERA);
+            posicao = (long) fila.indexOf(inscricao) + 1;
         }
         return InscricaoResponse.from(inscricao, posicao);
     }

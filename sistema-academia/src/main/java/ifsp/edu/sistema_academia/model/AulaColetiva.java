@@ -10,16 +10,21 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Aula coletiva recorrente (toda semana, no mesmo dia e horário). */
 @Entity
-@Table(name = "aulas_coletivas")
+@Table(name = "aula_coletiva")
 public class AulaColetiva {
 
     @Id
@@ -27,14 +32,16 @@ public class AulaColetiva {
     private Long id;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private Modalidade modalidade;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "instrutor_id", nullable = false)
-    private Usuario instrutor;
+    private Instrutor instrutor;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "dia_semana", nullable = false, length = 10)
     private DayOfWeek diaSemana;
 
@@ -50,10 +57,16 @@ public class AulaColetiva {
     @Column(name = "criada_em", nullable = false)
     private LocalDate criadaEm;
 
+    @Column(nullable = false)
+    private boolean ativa = true;
+
+    @OneToMany(mappedBy = "aulaColetiva")
+    private List<Inscricao> inscricoes = new ArrayList<>();
+
     protected AulaColetiva() {
     }
 
-    public AulaColetiva(Modalidade modalidade, Usuario instrutor, DayOfWeek diaSemana, LocalTime horario,
+    public AulaColetiva(Modalidade modalidade, Instrutor instrutor, DayOfWeek diaSemana, LocalTime horario,
                         int duracaoMinutos, int capacidade, LocalDate criadaEm) {
         this.modalidade = modalidade;
         this.instrutor = instrutor;
@@ -82,6 +95,10 @@ public class AulaColetiva {
         return LocalDateTime.of(data, horario);
     }
 
+    public void desativar() {
+        this.ativa = false;
+    }
+
     public Long getId() {
         return id;
     }
@@ -90,7 +107,7 @@ public class AulaColetiva {
         return modalidade;
     }
 
-    public Usuario getInstrutor() {
+    public Instrutor getInstrutor() {
         return instrutor;
     }
 
@@ -112,5 +129,13 @@ public class AulaColetiva {
 
     public LocalDate getCriadaEm() {
         return criadaEm;
+    }
+
+    public boolean isAtiva() {
+        return ativa;
+    }
+
+    public List<Inscricao> getInscricoes() {
+        return inscricoes;
     }
 }

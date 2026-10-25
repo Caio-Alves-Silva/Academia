@@ -12,18 +12,20 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
  * Inscrição de um aluno em uma ocorrência (aula + data) de uma aula coletiva. A ordem da lista de espera é a
- * ordem de criação (id crescente).
+ * ordem de criação ({@code criadaEm}, desempatada pelo id).
  */
 @Entity
-@Table(name = "inscricoes", indexes = {
-        @Index(name = "idx_inscricoes_sessao", columnList = "aula_id, data_aula, status"),
-        @Index(name = "idx_inscricoes_aluno", columnList = "aluno_id, data_aula")
+@Table(name = "inscricao", indexes = {
+        @Index(name = "idx_inscricao_sessao", columnList = "aula_id, data_aula, status"),
+        @Index(name = "idx_inscricao_aluno", columnList = "aluno_id, data_aula")
 })
 public class Inscricao {
 
@@ -33,23 +35,25 @@ public class Inscricao {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "aula_id", nullable = false)
-    private AulaColetiva aula;
+    private AulaColetiva aulaColetiva;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "aluno_id", nullable = false)
-    private Usuario aluno;
+    private Aluno aluno;
 
     @Column(name = "data_aula", nullable = false)
     private LocalDate dataAula;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private StatusInscricao status;
 
-    /** Preenchida somente depois que o instrutor registra a lista de presença. */
+    /** PENDENTE até o instrutor registrar a lista de presença. */
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private Presenca presenca;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 20)
+    private StatusPresenca presenca = StatusPresenca.PENDENTE;
 
     @Column(name = "criada_em", nullable = false)
     private LocalDateTime criadaEm;
@@ -60,9 +64,9 @@ public class Inscricao {
     protected Inscricao() {
     }
 
-    public Inscricao(AulaColetiva aula, Usuario aluno, LocalDate dataAula, StatusInscricao status,
+    public Inscricao(AulaColetiva aulaColetiva, Aluno aluno, LocalDate dataAula, StatusInscricao status,
                      LocalDateTime criadaEm) {
-        this.aula = aula;
+        this.aulaColetiva = aulaColetiva;
         this.aluno = aluno;
         this.dataAula = dataAula;
         this.status = status;
@@ -84,18 +88,18 @@ public class Inscricao {
     }
 
     public void registrarPresenca(boolean compareceu) {
-        this.presenca = compareceu ? Presenca.PRESENTE : Presenca.FALTA;
+        this.presenca = compareceu ? StatusPresenca.PRESENTE : StatusPresenca.FALTA;
     }
 
     public Long getId() {
         return id;
     }
 
-    public AulaColetiva getAula() {
-        return aula;
+    public AulaColetiva getAulaColetiva() {
+        return aulaColetiva;
     }
 
-    public Usuario getAluno() {
+    public Aluno getAluno() {
         return aluno;
     }
 
@@ -107,7 +111,7 @@ public class Inscricao {
         return status;
     }
 
-    public Presenca getPresenca() {
+    public StatusPresenca getPresenca() {
         return presenca;
     }
 

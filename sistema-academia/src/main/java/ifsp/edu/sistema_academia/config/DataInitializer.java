@@ -1,9 +1,12 @@
 package ifsp.edu.sistema_academia.config;
 
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.model.AulaColetiva;
+import ifsp.edu.sistema_academia.model.Instrutor;
 import ifsp.edu.sistema_academia.model.Modalidade;
-import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Plano;
+import ifsp.edu.sistema_academia.model.Recepcao;
+import ifsp.edu.sistema_academia.model.Turno;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.PlanoRepository;
@@ -27,8 +30,10 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Carga inicial. Sempre garante as contas de recepção e instrutores (que não se cadastram pela API). Com
- * {@code app.seed.demo-data=true} cria também planos, aulas e um aluno de demonstração. É idempotente.
+ * Carga inicial complementar ao Flyway ({@code V2__carga_inicial.sql}); é idempotente. Sempre garante as contas de
+ * recepção e instrutores (que não se cadastram pela API) - útil quando o schema é criado pelo Hibernate (perfil
+ * {@code h2} e testes). Com {@code app.seed.demo-data=true} cria também planos (se não houver nenhum), aulas e um
+ * aluno de demonstração.
  */
 @Component
 public class DataInitializer implements ApplicationRunner {
@@ -65,42 +70,69 @@ public class DataInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        garantirUsuario("Recepção Academia", "11144477735", "recepcao@academia.com", senhaRecepcao,
-                Perfil.RECEPCAO);
-        Usuario instrutor1 = garantirUsuario("Carlos Instrutor", "52998224725", "instrutor@academia.com",
-                senhaInstrutor, Perfil.INSTRUTOR);
-        Usuario instrutor2 = garantirUsuario("Ana Instrutora", "39053344705", "instrutor2@academia.com",
-                senhaInstrutor, Perfil.INSTRUTOR);
-
-        if (demoData && planoRepository.count() == 0) {
-            garantirUsuario("Aluno Demonstração", "16899535009", "aluno@academia.com", senhaAluno, Perfil.ALUNO);
-            criarPlanosEAulasDeDemonstracao(instrutor1, instrutor2);
+        LocalDateTime agora = LocalDateTime.now(clock);
+        garantirUsuario("recepcao@academia.com", () -> {
+            Recepcao recepcao = new Recepcao("Recepção Academia", "11144477735", "recepcao@academia.com",
+                    passwordEncoder.encode(senhaRecepcao), agora);
+            recepcao.setIdFunc("REC-001");
+            recepcao.setTurno(Turno.MANHA);
+            recepcao.setRamal("100");
+            return recepcao;
+        });
+        Instrutor instrutor1 = (Instrutor) garantirUsuario("instrutor@academia.com", () ->
+                novoInstrutor("Carlos Instrutor", "52998224725", "instrutor@academia.com", "000001-G/SP",
+                        "Musculação", Turno.MANHA, agora));
+        Instrutor instrutor2 = (Instrutor) garantirUsuario("instrutor2@academia.com", () ->
+                novoInstrutor("Ana Instrutora", "39053344705", "instrutor2@academia.com", "000002-G/SP",
+                        "Yoga e Pilates", Turno.NOITE, agora));
+        if (demoData) {
+            criarDadosDeDemonstracao(instrutor1, instrutor2, agora);
         }
     }
 
-    private Usuario garantirUsuario(String nome, String cpf, String email, String senha, Perfil perfil) {
+    private Instrutor novoInstrutor(String nome, String cpf, String email, String cref, String especialidade,
+                                    Turno turno, LocalDateTime agora) {
+        Instrutor instrutor = new Instrutor(nome, cpf, email, passwordEncoder.encode(senhaInstrutor), agora);
+        instrutor.setCref(cref);
+        instrutor.setEspecialidade(especialidade);
+        instrutor.setTurno(turno);
+        instrutor.setDataContratacao(agora.toLocalDate());
+        instrutor.setAtivo(true);
+        return instrutor;
+    }
+
+    private Usuario garantirUsuario(String email, java.util.function.Supplier<Usuario> fabrica) {
         return usuarioRepository.findByEmail(email).orElseGet(() -> {
-            log.info("Carga inicial: criando usuário {} ({})", email, perfil);
-            return usuarioRepository.save(new Usuario(nome, cpf, email, passwordEncoder.encode(senha), perfil,
-                    LocalDateTime.now(clock)));
+            Usuario novo = usuarioRepository.save(fabrica.get());
+            log.info("Carga inicial: criando usuário {} ({})", email, novo.getPerfil());
+            return novo;
         });
     }
 
-    private void criarPlanosEAulasDeDemonstracao(Usuario instrutor1, Usuario instrutor2) {
-        planoRepository.save(new Plano("Mensal Básico", 1, new BigDecimal("99.90"),
-                Set.of(Modalidade.MUSCULACAO, Modalidade.SPINNING), 3));
-        planoRepository.save(new Plano("Trimestral Completo", 3, new BigDecimal("89.90"),
-                Set.of(Modalidade.MUSCULACAO, Modalidade.SPINNING, Modalidade.FUNCIONAL, Modalidade.YOGA), 4));
-        planoRepository.save(new Plano("Anual Premium", 12, new BigDecimal("69.90"),
-                EnumSet.allOf(Modalidade.class), 7));
-
-        LocalDate hoje = LocalDate.now(clock);
-        aulaRepository.save(new AulaColetiva(Modalidade.SPINNING, instrutor1, DayOfWeek.MONDAY,
-                LocalTime.of(18, 0), 50, 15, hoje));
-        aulaRepository.save(new AulaColetiva(Modalidade.YOGA, instrutor2, DayOfWeek.WEDNESDAY,
-                LocalTime.of(19, 0), 60, 20, hoje));
-        aulaRepository.save(new AulaColetiva(Modalidade.FUNCIONAL, instrutor1, DayOfWeek.FRIDAY,
-                LocalTime.of(7, 0), 45, 12, hoje));
-        log.info("Carga inicial: planos, aulas e aluno de demonstração criados");
+    private void criarDadosDeDemonstracao(Instrutor instrutor1, Instrutor instrutor2, LocalDateTime agora) {
+        if (planoRepository.count() == 0) {
+            planoRepository.save(new Plano("Mensal Básico", 1, new BigDecimal("99.90"),
+                    Set.of(Modalidade.MUSCULACAO, Modalidade.SPINNING), 3));
+            planoRepository.save(new Plano("Trimestral Completo", 3, new BigDecimal("89.90"),
+                    Set.of(Modalidade.MUSCULACAO, Modalidade.SPINNING, Modalidade.FUNCIONAL, Modalidade.YOGA), 4));
+            planoRepository.save(new Plano("Anual Premium", 12, new BigDecimal("69.90"),
+                    EnumSet.allOf(Modalidade.class), 7));
+        }
+        if (aulaRepository.count() == 0) {
+            garantirUsuario("aluno@academia.com", () -> {
+                Aluno aluno = new Aluno("Aluno Demonstração", "16899535009", "aluno@academia.com",
+                        passwordEncoder.encode(senhaAluno), agora);
+                aluno.setObjetivo("Condicionamento físico");
+                return aluno;
+            });
+            LocalDate hoje = agora.toLocalDate();
+            aulaRepository.save(new AulaColetiva(Modalidade.SPINNING, instrutor1, DayOfWeek.MONDAY,
+                    LocalTime.of(18, 0), 50, 15, hoje));
+            aulaRepository.save(new AulaColetiva(Modalidade.YOGA, instrutor2, DayOfWeek.WEDNESDAY,
+                    LocalTime.of(19, 0), 60, 20, hoje));
+            aulaRepository.save(new AulaColetiva(Modalidade.FUNCIONAL, instrutor1, DayOfWeek.FRIDAY,
+                    LocalTime.of(7, 0), 45, 12, hoje));
+            log.info("Carga inicial: planos, aulas e aluno de demonstração criados");
+        }
     }
 }

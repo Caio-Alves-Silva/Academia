@@ -11,12 +11,11 @@ import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.exception.RegraNegocioException;
 import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Mensalidade;
-import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Plano;
-import ifsp.edu.sistema_academia.model.Usuario;
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.repository.MatriculaRepository;
 import ifsp.edu.sistema_academia.repository.PlanoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,14 +34,14 @@ import java.util.List;
 public class MatriculaService {
 
     private final MatriculaRepository matriculaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final AlunoRepository alunoRepository;
     private final PlanoRepository planoRepository;
     private final Clock clock;
 
-    public MatriculaService(MatriculaRepository matriculaRepository, UsuarioRepository usuarioRepository,
+    public MatriculaService(MatriculaRepository matriculaRepository, AlunoRepository alunoRepository,
                             PlanoRepository planoRepository, Clock clock) {
         this.matriculaRepository = matriculaRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.alunoRepository = alunoRepository;
         this.planoRepository = planoRepository;
         this.clock = clock;
     }
@@ -50,7 +49,7 @@ public class MatriculaService {
     @Transactional
     public MatriculaResponse matricular(MatriculaRequest request) {
         LocalDate hoje = LocalDate.now(clock);
-        Usuario aluno = bloquearAluno(request.alunoId());
+        Aluno aluno = bloquearAluno(request.alunoId());
         Plano plano = buscarPlano(request.planoId());
         if (matriculaRepository.findAtiva(aluno.getId(), hoje).isPresent()) {
             throw new MatriculaAtivaExistenteException(aluno.getId());
@@ -76,7 +75,7 @@ public class MatriculaService {
         BigDecimal credito = atual.creditoNaoUtilizado(hoje);
         List<Mensalidade> canceladas = atual.encerrarPorTroca(hoje);
         Matricula nova = matriculaRepository.save(Matricula.iniciar(atual.getAluno(), novoPlano, hoje, credito));
-        BigDecimal descontoAplicado = nova.getMensalidades().get(0).getDesconto();
+        BigDecimal descontoAplicado = novoPlano.getValorMensal().subtract(nova.getMensalidades().get(0).getValor());
 
         return new TrocaPlanoResponse(MatriculaResponse.from(atual, hoje), MatriculaResponse.from(nova, hoje),
                 credito, descontoAplicado, canceladas.size());
@@ -137,13 +136,13 @@ public class MatriculaService {
         }
     }
 
-    private Usuario bloquearAluno(Long alunoId) {
-        return usuarioRepository.findByIdAndPerfilForUpdate(alunoId, Perfil.ALUNO)
+    private Aluno bloquearAluno(Long alunoId) {
+        return alunoRepository.findByIdForUpdate(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
     }
 
-    private Usuario buscarAlunoExistente(Long alunoId) {
-        return usuarioRepository.findByIdAndPerfil(alunoId, Perfil.ALUNO)
+    private Aluno buscarAlunoExistente(Long alunoId) {
+        return alunoRepository.findById(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
     }
 
