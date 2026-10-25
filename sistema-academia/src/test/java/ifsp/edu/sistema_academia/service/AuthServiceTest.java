@@ -7,6 +7,7 @@ import ifsp.edu.sistema_academia.dto.response.UsuarioResponse;
 import ifsp.edu.sistema_academia.exception.CredenciaisInvalidasException;
 import ifsp.edu.sistema_academia.exception.DadoDuplicadoException;
 import ifsp.edu.sistema_academia.exception.RegraNegocioException;
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.UsuarioRepository;
@@ -101,8 +102,8 @@ class AuthServiceTest {
 
     @Test
     void loginDevolveToken() {
-        Usuario usuario = Fixtures.comId(new Usuario("Maria", "52998224725", "maria@email.com",
-                encoder.encode("senha1234"), Perfil.ALUNO, Fixtures.AGORA), 7L);
+        Usuario usuario = Fixtures.comId(new Aluno("Maria", "52998224725", "maria@email.com",
+                encoder.encode("senha1234"), Fixtures.AGORA), 7L);
         when(usuarioRepository.findByEmail("maria@email.com")).thenReturn(Optional.of(usuario));
         Instant expira = Instant.now().plusSeconds(3600);
         when(jwtTokenService.emitir(usuario)).thenReturn(new JwtTokenService.TokenEmitido("tok", expira));
@@ -119,8 +120,8 @@ class AuthServiceTest {
     @Test
     @DisplayName("credenciais inválidas não indicam qual campo está errado")
     void loginComCredenciaisInvalidas() {
-        Usuario usuario = new Usuario("Maria", "52998224725", "maria@email.com", encoder.encode("senha1234"),
-                Perfil.ALUNO, Fixtures.AGORA);
+        Usuario usuario = new Aluno("Maria", "52998224725", "maria@email.com", encoder.encode("senha1234"),
+                Fixtures.AGORA);
         when(usuarioRepository.findByEmail("maria@email.com")).thenReturn(Optional.of(usuario));
         when(usuarioRepository.findByEmail("naoexiste@email.com")).thenReturn(Optional.empty());
 

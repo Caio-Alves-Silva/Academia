@@ -1,5 +1,7 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.response.MensalidadeResponse;
 import ifsp.edu.sistema_academia.exception.AcessoNegadoException;
 import ifsp.edu.sistema_academia.exception.MensalidadeCanceladaException;
@@ -9,10 +11,10 @@ import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Mensalidade;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.MensalidadeRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +42,9 @@ class MensalidadeServiceTest {
     @Mock
     MensalidadeRepository mensalidadeRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
 
-    final Usuario aluno = Fixtures.aluno(1L);
+    final Aluno aluno = Fixtures.aluno(1L);
     final UsuarioAutenticado dono = new UsuarioAutenticado(1L, "a@a.com", Perfil.ALUNO);
     final UsuarioAutenticado outro = new UsuarioAutenticado(2L, "b@a.com", Perfil.ALUNO);
     final UsuarioAutenticado recepcao = new UsuarioAutenticado(3L, "r@a.com", Perfil.RECEPCAO);
@@ -51,7 +53,7 @@ class MensalidadeServiceTest {
     Mensalidade primeira;
 
     MensalidadeService servicoEm(LocalDateTime agora) {
-        return new MensalidadeService(mensalidadeRepository, usuarioRepository, Fixtures.relogio(agora));
+        return new MensalidadeService(mensalidadeRepository, alunoRepository, Fixtures.relogio(agora));
     }
 
     @BeforeEach
@@ -61,7 +63,7 @@ class MensalidadeServiceTest {
         primeira = matricula.getMensalidades().get(0);
         when(mensalidadeRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(primeira));
         when(mensalidadeRepository.findById(501L)).thenReturn(Optional.of(primeira));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
     }
 
     @Test
@@ -69,7 +71,7 @@ class MensalidadeServiceTest {
     void pagarEmDia() {
         MensalidadeResponse resposta = servicoEm(Fixtures.AGORA).pagar(501L, dono);
 
-        assertThat(resposta.status()).isEqualTo(StatusMensalidade.PAGA);
+        assertThat(resposta.status()).isEqualTo(StatusPagamento.PAGO);
         assertThat(resposta.multa()).isEqualByComparingTo("0.00");
         assertThat(resposta.valorPago()).isEqualByComparingTo("100.00");
         assertThat(resposta.valorAPagarHoje()).isNull();
@@ -110,7 +112,7 @@ class MensalidadeServiceTest {
         assertThatThrownBy(() -> service.buscar(501L, outro)).isInstanceOf(AcessoNegadoException.class);
         assertThatThrownBy(() -> service.listarPorAluno(1L, null, outro))
                 .isInstanceOf(AcessoNegadoException.class);
-        assertThat(primeira.getStatus()).isEqualTo(StatusMensalidade.PENDENTE);
+        assertThat(primeira.getStatusPagamento()).isEqualTo(StatusPagamento.PENDENTE);
     }
 
     @Test
@@ -134,11 +136,11 @@ class MensalidadeServiceTest {
         MensalidadeService service = servicoEm(Fixtures.AGORA);
         when(mensalidadeRepository.findByMatriculaAlunoIdOrderByVencimentoAscIdAsc(1L))
                 .thenReturn(matricula.getMensalidades());
-        when(mensalidadeRepository.findByMatriculaAlunoIdAndStatusOrderByVencimentoAscIdAsc(
-                1L, StatusMensalidade.PAGA)).thenReturn(List.of());
+        when(mensalidadeRepository.findByMatriculaAlunoIdAndStatusPagamentoOrderByVencimentoAscIdAsc(
+                1L, StatusPagamento.PAGO)).thenReturn(List.of());
 
         assertThat(service.listarPorAluno(1L, null, dono)).hasSize(3);
-        assertThat(service.listarPorAluno(1L, StatusMensalidade.PAGA, recepcao)).isEmpty();
+        assertThat(service.listarPorAluno(1L, StatusPagamento.PAGO, recepcao)).isEmpty();
         assertThatThrownBy(() -> service.listarPorAluno(7L, null, recepcao))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }

@@ -1,7 +1,7 @@
 package ifsp.edu.sistema_academia.controller;
 
 import ifsp.edu.sistema_academia.dto.response.MensalidadeResponse;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.security.UsuarioLogado;
 import ifsp.edu.sistema_academia.service.MensalidadeService;
@@ -32,7 +32,7 @@ public class MensalidadeController {
     @PreAuthorize("hasAnyRole('ALUNO','RECEPCAO')")
     @Operation(summary = "Lista as mensalidades do aluno", description = "Filtro opcional por status.")
     public List<MensalidadeResponse> listarDoAluno(@PathVariable Long alunoId,
-                                                   @RequestParam(required = false) StatusMensalidade status,
+                                                   @RequestParam(required = false) StatusPagamento status,
                                                    @UsuarioLogado UsuarioAutenticado usuario) {
         return mensalidadeService.listarPorAluno(alunoId, status, usuario);
     }

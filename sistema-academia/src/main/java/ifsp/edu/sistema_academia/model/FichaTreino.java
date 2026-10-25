@@ -1,8 +1,7 @@
 package ifsp.edu.sistema_academia.model;
 
-import jakarta.persistence.CollectionTable;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
@@ -17,9 +17,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Ficha de treino de um aluno. Só uma ficha por aluno é a atual; as anteriores formam o histórico. */
+/**
+ * Ficha de treino de um aluno, composta por {@link ItemTreino}. Só uma ficha por aluno é a atual; as anteriores
+ * formam o histórico.
+ */
 @Entity
-@Table(name = "fichas_treino")
+@Table(name = "ficha_treino")
 public class FichaTreino {
 
     @Id
@@ -28,30 +31,30 @@ public class FichaTreino {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "aluno_id", nullable = false)
-    private Usuario aluno;
+    private Aluno aluno;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "instrutor_id", nullable = false)
-    private Usuario instrutor;
+    private Instrutor instrutor;
 
     @Column(name = "criada_em", nullable = false)
     private LocalDateTime criadaEm;
 
-    @Column(nullable = false)
-    private boolean atual = true;
+    @Column(name = "is_atual", nullable = false)
+    private Boolean isAtual = Boolean.TRUE;
 
     @Column(length = 500)
     private String observacoes;
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "ficha_itens", joinColumns = @JoinColumn(name = "ficha_id"))
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @JoinColumn(name = "ficha_treino_id", nullable = false)
     @OrderColumn(name = "ordem")
     private List<ItemTreino> itens = new ArrayList<>();
 
     protected FichaTreino() {
     }
 
-    public FichaTreino(Usuario aluno, Usuario instrutor, LocalDateTime criadaEm, String observacoes,
+    public FichaTreino(Aluno aluno, Instrutor instrutor, LocalDateTime criadaEm, String observacoes,
                        List<ItemTreino> itens) {
         this.aluno = aluno;
         this.instrutor = instrutor;
@@ -60,20 +63,20 @@ public class FichaTreino {
         this.itens = new ArrayList<>(itens);
     }
 
-    /** Move a ficha para o histórico. */
+    /** Move a ficha para o histórico ({@code isAtual = false}). */
     public void arquivar() {
-        this.atual = false;
+        this.isAtual = Boolean.FALSE;
     }
 
     public Long getId() {
         return id;
     }
 
-    public Usuario getAluno() {
+    public Aluno getAluno() {
         return aluno;
     }
 
-    public Usuario getInstrutor() {
+    public Instrutor getInstrutor() {
         return instrutor;
     }
 
@@ -81,8 +84,8 @@ public class FichaTreino {
         return criadaEm;
     }
 
-    public boolean isAtual() {
-        return atual;
+    public Boolean getIsAtual() {
+        return isAtual;
     }
 
     public String getObservacoes() {

@@ -1,11 +1,5 @@
 package ifsp.edu.sistema_academia.model;
 
-import ifsp.edu.sistema_academia.model.Matricula;
-import ifsp.edu.sistema_academia.model.Mensalidade;
-import ifsp.edu.sistema_academia.model.Modalidade;
-import ifsp.edu.sistema_academia.model.Plano;
-import ifsp.edu.sistema_academia.model.StatusMatricula;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +26,7 @@ class MatriculaTest {
 
         assertThat(m.getDataInicio()).isEqualTo(INICIO);
         assertThat(m.getDataFim()).isEqualTo(LocalDate.of(2026, 6, 10));
-        assertThat(m.getStatus()).isEqualTo(StatusMatricula.ATIVA);
+        assertThat(m.getStatusMatricula()).isEqualTo(StatusMatricula.ATIVA);
         assertThat(m.getMensalidades()).extracting(Mensalidade::getNumero).containsExactly(1, 2, 3);
         assertThat(m.getMensalidades()).extracting(Mensalidade::getVencimento)
                 .containsExactly(LocalDate.of(2026, 3, 11), LocalDate.of(2026, 4, 11), LocalDate.of(2026, 5, 11));
@@ -40,7 +34,7 @@ class MatriculaTest {
                 .containsExactly(LocalDate.of(2026, 4, 10), LocalDate.of(2026, 5, 10), LocalDate.of(2026, 6, 10));
         assertThat(m.getMensalidades()).allSatisfy(men -> {
             assertThat(men.getValor()).isEqualByComparingTo("100.00");
-            assertThat(men.getStatus()).isEqualTo(StatusMensalidade.PENDENTE);
+            assertThat(men.getStatusPagamento()).isEqualTo(StatusPagamento.PENDENTE);
         });
     }
 
@@ -62,9 +56,9 @@ class MatriculaTest {
         assertThat(m.getMensalidades()).extracting(Mensalidade::getVencimento)
                 .containsExactly(LocalDate.of(2026, 1, 31), LocalDate.of(2026, 2, 28), LocalDate.of(2026, 3, 31));
         // os períodos são contíguos
-        assertThat(m.getMensalidades().get(1).getPeriodoInicio())
+        assertThat(m.getMensalidades().get(1).getPeriodoInicial())
                 .isEqualTo(m.getMensalidades().get(0).getPeriodoFim().plusDays(1));
-        assertThat(m.getMensalidades().get(2).getPeriodoInicio())
+        assertThat(m.getMensalidades().get(2).getPeriodoInicial())
                 .isEqualTo(m.getMensalidades().get(1).getPeriodoFim().plusDays(1));
     }
 
@@ -75,19 +69,19 @@ class MatriculaTest {
 
         Matricula m = Matricula.iniciar(Fixtures.aluno(1L), plano, INICIO, new BigDecimal("150.00"));
 
-        assertThat(m.getMensalidades().get(0).getDesconto()).isEqualByComparingTo("100.00");
-        assertThat(m.getMensalidades().get(1).getDesconto()).isEqualByComparingTo("0");
+        assertThat(m.getMensalidades().get(0).getValor()).isEqualByComparingTo("0.00");
+        assertThat(m.getMensalidades().get(1).getValor()).isEqualByComparingTo("100.00");
     }
 
     @Test
-    @DisplayName("ativa até o último dia de vigência; depois aparece como CONCLUIDA")
+    @DisplayName("ativa até o último dia de vigência; depois aparece como ENCERRADA")
     void vigencia() {
         Matricula m = matricula(1, "100.00", INICIO); // fim em 10/04
 
         assertThat(m.estaAtiva(LocalDate.of(2026, 4, 10))).isTrue();
         assertThat(m.statusEfetivo(LocalDate.of(2026, 4, 10))).isEqualTo(StatusMatricula.ATIVA);
         assertThat(m.estaAtiva(LocalDate.of(2026, 4, 11))).isFalse();
-        assertThat(m.statusEfetivo(LocalDate.of(2026, 4, 11))).isEqualTo(StatusMatricula.CONCLUIDA);
+        assertThat(m.statusEfetivo(LocalDate.of(2026, 4, 11))).isEqualTo(StatusMatricula.ENCERRADA);
     }
 
     @Test
@@ -101,10 +95,10 @@ class MatriculaTest {
         assertThat(canceladas).hasSize(2);
         assertThat(Matricula.valorTotal(canceladas)).isEqualByComparingTo("200.00");
         assertThat(m.getMultaCancelamento()).isEqualByComparingTo("20.00");
-        assertThat(m.getStatus()).isEqualTo(StatusMatricula.CANCELADA);
+        assertThat(m.getStatusMatricula()).isEqualTo(StatusMatricula.CANCELADA);
         assertThat(m.getDataEncerramento()).isEqualTo(INICIO.plusDays(5));
-        assertThat(m.getMensalidades()).extracting(Mensalidade::getStatus)
-                .containsExactly(StatusMensalidade.PAGA, StatusMensalidade.CANCELADA, StatusMensalidade.CANCELADA);
+        assertThat(m.getMensalidades()).extracting(Mensalidade::getStatusPagamento)
+                .containsExactly(StatusPagamento.PAGO, StatusPagamento.CANCELADO, StatusPagamento.CANCELADO);
     }
 
     @Test
@@ -126,7 +120,7 @@ class MatriculaTest {
 
         assertThat(canceladas).isEmpty();
         assertThat(m.getMultaCancelamento()).isEqualByComparingTo("0.00");
-        assertThat(m.getStatus()).isEqualTo(StatusMatricula.CANCELADA);
+        assertThat(m.getStatusMatricula()).isEqualTo(StatusMatricula.CANCELADA);
     }
 
     @Test
@@ -137,9 +131,9 @@ class MatriculaTest {
         List<Mensalidade> canceladas = m.cancelar(LocalDate.of(2026, 4, 11)); // vencimento da 2ª é hoje
 
         assertThat(canceladas).hasSize(1);
-        assertThat(m.getMensalidades()).extracting(Mensalidade::getStatus)
-                .containsExactly(StatusMensalidade.PENDENTE, StatusMensalidade.PENDENTE,
-                        StatusMensalidade.CANCELADA);
+        assertThat(m.getMensalidades()).extracting(Mensalidade::getStatusPagamento)
+                .containsExactly(StatusPagamento.PENDENTE, StatusPagamento.PENDENTE,
+                        StatusPagamento.CANCELADO);
     }
 
     @Test
@@ -154,7 +148,7 @@ class MatriculaTest {
 
         assertThat(credito).isEqualByComparingTo("193.55");
         assertThat(canceladas).hasSize(2);
-        assertThat(m.getStatus()).isEqualTo(StatusMatricula.ENCERRADA);
+        assertThat(m.getStatusMatricula()).isEqualTo(StatusMatricula.ENCERRADA);
         assertThat(m.getMultaCancelamento()).isEqualByComparingTo("0");
         assertThat(m.estaAtiva(hoje)).isFalse();
     }

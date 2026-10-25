@@ -12,12 +12,12 @@ import java.util.Optional;
 
 public interface MatriculaRepository extends JpaRepository<Matricula, Long> {
 
-    Optional<Matricula> findFirstByAlunoIdAndStatusAndDataFimGreaterThanEqual(
+    Optional<Matricula> findFirstByAlunoIdAndStatusMatriculaAndDataFimGreaterThanEqual(
             Long alunoId, StatusMatricula status, LocalDate hoje);
 
     /** Matrícula ativa: status ATIVA e vigência ainda não encerrada em {@code hoje}. */
     default Optional<Matricula> findAtiva(Long alunoId, LocalDate hoje) {
-        return findFirstByAlunoIdAndStatusAndDataFimGreaterThanEqual(alunoId, StatusMatricula.ATIVA, hoje);
+        return findFirstByAlunoIdAndStatusMatriculaAndDataFimGreaterThanEqual(alunoId, StatusMatricula.ATIVA, hoje);
     }
 
     List<Matricula> findByAlunoIdOrderByDataInicioDescIdDesc(Long alunoId);

@@ -7,10 +7,9 @@ import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.exception.RegraNegocioException;
 import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Modalidade;
-import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.Usuario;
+import ifsp.edu.sistema_academia.model.Instrutor;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.InstrutorRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,12 +26,12 @@ public class AulaService {
     private static final int MINUTOS_NO_DIA = 24 * 60;
 
     private final AulaColetivaRepository aulaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final InstrutorRepository instrutorRepository;
     private final Clock clock;
 
-    public AulaService(AulaColetivaRepository aulaRepository, UsuarioRepository usuarioRepository, Clock clock) {
+    public AulaService(AulaColetivaRepository aulaRepository, InstrutorRepository instrutorRepository, Clock clock) {
         this.aulaRepository = aulaRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.instrutorRepository = instrutorRepository;
         this.clock = clock;
     }
 
@@ -42,12 +41,15 @@ public class AulaService {
             throw new RegraNegocioException("A aula deve terminar até as 24h do mesmo dia");
         }
         // Lock no instrutor: duas criações simultâneas para o mesmo instrutor não furam a regra de sobreposição.
-        Usuario instrutor = usuarioRepository.findByIdAndPerfilForUpdate(request.instrutorId(), Perfil.INSTRUTOR)
+        Instrutor instrutor = instrutorRepository.findByIdForUpdate(request.instrutorId())
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Instrutor", request.instrutorId()));
+        if (!Boolean.TRUE.equals(instrutor.getAtivo())) {
+            throw new RegraNegocioException("O instrutor " + instrutor.getNome() + " está inativo");
+        }
 
         Optional<AulaColetiva> conflitante = aulaRepository
                 .findByInstrutorIdAndDiaSemana(instrutor.getId(), request.diaSemana()).stream()
-                .filter(a -> a.sobrepoe(request.diaSemana(), request.horario(), request.duracaoMinutos()))
+                .filter(a -> a.isAtiva() && a.sobrepoe(request.diaSemana(), request.horario(), request.duracaoMinutos()))
                 .findFirst();
         if (conflitante.isPresent()) {
             throw new ConflitoHorarioInstrutorException(instrutor.getNome(), conflitante.get().getId());

@@ -9,7 +9,7 @@ import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Mensalidade;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.CheckinRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
@@ -89,7 +89,7 @@ class RelatorioServiceTest {
                 m1.getMensalidades().get(0),  // 11/01: 59 dias
                 m2.getMensalidades().get(0),  // 08/03: 3 dias
                 m1.getMensalidades().get(1)); // 11/02: 28 dias
-        when(mensalidadeRepository.findVencidas(StatusMensalidade.PENDENTE, HOJE)).thenReturn(vencidas);
+        when(mensalidadeRepository.findVencidas(StatusPagamento.PENDENTE, HOJE)).thenReturn(vencidas);
 
         List<InadimplenteResponse> resultado = service.inadimplentes();
 

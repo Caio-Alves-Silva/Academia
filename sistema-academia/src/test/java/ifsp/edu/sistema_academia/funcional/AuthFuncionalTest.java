@@ -146,11 +146,9 @@ class AuthFuncionalTest extends FuncionalTestBase {
     @DisplayName("token expirado é rejeitado")
     void tokenExpirado() throws Exception {
         // Token emitido por um serviço com validade negativa, assinado com o mesmo segredo da aplicação
-        var config = new ifsp.edu.sistema_academia.config.SecurityConfig();
         var propriedades = new ifsp.edu.sistema_academia.config.JwtProperties(
                 "segredo-de-teste-com-mais-de-32-caracteres-xyz", java.time.Duration.ofMinutes(-5));
-        var servico = new ifsp.edu.sistema_academia.security.JwtTokenService(config.jwtEncoder(propriedades),
-                propriedades);
+        var servico = new ifsp.edu.sistema_academia.security.JwtTokenService(propriedades);
         String expirado = servico.emitir(usuarioRepository.findByEmail("recepcao@academia.com").orElseThrow()).token();
 
         consultar("/api/planos", expirado).andExpect(status().isUnauthorized());

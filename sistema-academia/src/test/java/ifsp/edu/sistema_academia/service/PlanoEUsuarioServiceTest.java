@@ -1,5 +1,7 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.request.PlanoRequest;
 import ifsp.edu.sistema_academia.dto.response.PlanoResponse;
 import ifsp.edu.sistema_academia.dto.response.UsuarioResponse;
@@ -9,7 +11,7 @@ import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Plano;
 import ifsp.edu.sistema_academia.repository.PlanoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.Test;
@@ -36,7 +38,7 @@ class PlanoEUsuarioServiceTest {
     @Mock
     PlanoRepository planoRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
 
     @Test
     void criaListaEBuscaPlanos() {
@@ -67,12 +69,12 @@ class PlanoEUsuarioServiceTest {
 
     @Test
     void consultaDeAlunos() {
-        UsuarioService service = new UsuarioService(usuarioRepository);
+        UsuarioService service = new UsuarioService(alunoRepository);
         var aluno = Fixtures.aluno(1L);
-        when(usuarioRepository.findByPerfilOrderByNomeAsc(Perfil.ALUNO)).thenReturn(List.of(aluno));
-        when(usuarioRepository.findByPerfilAndNomeContainingIgnoreCaseOrderByNomeAsc(Perfil.ALUNO, "alu"))
+        when(alunoRepository.findAllByOrderByNomeAsc()).thenReturn(List.of(aluno));
+        when(alunoRepository.findByNomeContainingIgnoreCaseOrderByNomeAsc("alu"))
                 .thenReturn(List.of(aluno));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
 
         assertThat(service.listarAlunos(null)).hasSize(1);
         assertThat(service.listarAlunos("  ")).hasSize(1);

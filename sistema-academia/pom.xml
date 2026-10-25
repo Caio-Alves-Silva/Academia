@@ -16,6 +16,7 @@
 	<properties>
 		<java.version>17</java.version>
 		<jacoco.version>0.8.14</jacoco.version>
+		<jjwt.version>0.12.6</jjwt.version>
 		<!-- Cobertura mínima de linhas exigida pelo "mvn verify" (relatório em target/site/jacoco) -->
 		<jacoco.minimum.line.coverage>0.80</jacoco.minimum.line.coverage>
 	</properties>
@@ -28,10 +29,23 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-		<!-- JWT: Spring Security (Nimbus) para emitir e validar os tokens -->
+		<!-- JWT (jjwt 0.12.x): emissão e validação dos tokens -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -51,6 +65,19 @@
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
 			<scope>runtime</scope>
+		</dependency>
+		<!-- Flyway gerencia o schema (V1 = DDL, V2 = carga inicial). No Spring Boot 4 o auto-config vem do starter. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-mysql</artifactId>
 		</dependency>
 		<!-- Banco em memória: testes e perfil "h2" (execução local sem MySQL) -->
 		<dependency>

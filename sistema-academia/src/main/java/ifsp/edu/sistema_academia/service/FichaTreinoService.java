@@ -5,10 +5,11 @@ import ifsp.edu.sistema_academia.dto.response.FichaTreinoResponse;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.model.FichaTreino;
 import ifsp.edu.sistema_academia.model.ItemTreino;
-import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.Usuario;
+import ifsp.edu.sistema_academia.model.Aluno;
+import ifsp.edu.sistema_academia.model.Instrutor;
 import ifsp.edu.sistema_academia.repository.FichaTreinoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
+import ifsp.edu.sistema_academia.repository.InstrutorRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,25 +24,27 @@ import java.util.List;
 public class FichaTreinoService {
 
     private final FichaTreinoRepository fichaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final AlunoRepository alunoRepository;
+    private final InstrutorRepository instrutorRepository;
     private final Clock clock;
 
-    public FichaTreinoService(FichaTreinoRepository fichaRepository, UsuarioRepository usuarioRepository,
-                              Clock clock) {
+    public FichaTreinoService(FichaTreinoRepository fichaRepository, AlunoRepository alunoRepository,
+                              InstrutorRepository instrutorRepository, Clock clock) {
         this.fichaRepository = fichaRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.alunoRepository = alunoRepository;
+        this.instrutorRepository = instrutorRepository;
         this.clock = clock;
     }
 
     @Transactional
     public FichaTreinoResponse criar(Long alunoId, FichaTreinoRequest request, UsuarioAutenticado instrutorLogado) {
-        Usuario aluno = usuarioRepository.findByIdAndPerfilForUpdate(alunoId, Perfil.ALUNO)
+        Aluno aluno = alunoRepository.findByIdForUpdate(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
-        Usuario instrutor = usuarioRepository.findById(instrutorLogado.id())
+        Instrutor instrutor = instrutorRepository.findById(instrutorLogado.id())
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Instrutor", instrutorLogado.id()));
 
         // A ficha anterior vai para o histórico e a nova é gravada na mesma transação.
-        fichaRepository.findByAlunoIdAndAtualTrue(alunoId).ifPresent(FichaTreino::arquivar);
+        fichaRepository.findAllByAlunoIdAndIsAtualTrue(alunoId).forEach(FichaTreino::arquivar);
 
         List<ItemTreino> itens = request.itens().stream()
                 .map(i -> new ItemTreino(i.exercicio().trim(), i.series(), i.repeticoes(),
@@ -59,7 +62,7 @@ public class FichaTreinoService {
     public FichaTreinoResponse buscarAtual(Long alunoId, UsuarioAutenticado solicitante) {
         solicitante.exigirAcessoAoAluno(alunoId);
         validarAluno(alunoId);
-        return fichaRepository.findByAlunoIdAndAtualTrue(alunoId)
+        return fichaRepository.findFirstByAlunoIdAndIsAtualTrueOrderByCriadaEmDescIdDesc(alunoId)
                 .map(FichaTreinoResponse::from)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "O aluno " + alunoId + " ainda não possui ficha de treino"));
@@ -69,13 +72,13 @@ public class FichaTreinoService {
     public List<FichaTreinoResponse> listarHistorico(Long alunoId, UsuarioAutenticado solicitante) {
         solicitante.exigirAcessoAoAluno(alunoId);
         validarAluno(alunoId);
-        return fichaRepository.findByAlunoIdAndAtualFalseOrderByCriadaEmDescIdDesc(alunoId).stream()
+        return fichaRepository.findByAlunoIdAndIsAtualFalseOrderByCriadaEmDescIdDesc(alunoId).stream()
                 .map(FichaTreinoResponse::from)
                 .toList();
     }
 
     private void validarAluno(Long alunoId) {
-        usuarioRepository.findByIdAndPerfil(alunoId, Perfil.ALUNO)
+        alunoRepository.findById(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
     }
 }

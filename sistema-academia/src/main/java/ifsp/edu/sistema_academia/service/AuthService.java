@@ -7,7 +7,7 @@ import ifsp.edu.sistema_academia.dto.response.UsuarioResponse;
 import ifsp.edu.sistema_academia.exception.CredenciaisInvalidasException;
 import ifsp.edu.sistema_academia.exception.DadoDuplicadoException;
 import ifsp.edu.sistema_academia.exception.RegraNegocioException;
-import ifsp.edu.sistema_academia.model.Perfil;
+import ifsp.edu.sistema_academia.model.Aluno;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.UsuarioRepository;
 import ifsp.edu.sistema_academia.security.JwtTokenService;
@@ -56,8 +56,12 @@ public class AuthService {
         if (usuarioRepository.existsByEmail(email)) {
             throw new DadoDuplicadoException("E-mail");
         }
-        Usuario aluno = new Usuario(request.nome().trim(), cpf, email, passwordEncoder.encode(request.senha()),
-                Perfil.ALUNO, LocalDateTime.now(clock));
+        Aluno aluno = new Aluno(request.nome().trim(), cpf, email, passwordEncoder.encode(request.senha()),
+                LocalDateTime.now(clock));
+        aluno.setDataNascimento(request.dataNascimento());
+        aluno.setTelefone(request.telefone());
+        aluno.setObjetivo(request.objetivo());
+        aluno.setRestricoesMedicas(request.restricoesMedicas());
         return UsuarioResponse.from(usuarioRepository.saveAndFlush(aluno));
     }
 

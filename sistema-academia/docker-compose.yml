@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: academia
+      MYSQL_DATABASE: academia_db
       MYSQL_USER: academia
       MYSQL_PASSWORD: academia
     ports:
@@ -36,10 +36,9 @@ services:
       - "8080:8080"
     environment:
       PORT: 8080
-      DB_URL: jdbc:mysql://mysql:3306/academia?createDatabaseIfNotExist=true&serverTimezone=America/Sao_Paulo&allowPublicKeyRetrieval=true&useSSL=false
+      DB_URL: jdbc:mysql://mysql:3306/academia_db?useSSL=false&serverTimezone=America/Sao_Paulo&allowPublicKeyRetrieval=true
       DB_USER: academia
       DB_PASSWORD: academia
-      DDL_AUTO: update
       JWT_SECRET: segredo-super-seguro-com-mais-de-32-caracteres-producao
       APP_TIMEZONE: America/Sao_Paulo
       SEED_DEMO_DATA: "true"

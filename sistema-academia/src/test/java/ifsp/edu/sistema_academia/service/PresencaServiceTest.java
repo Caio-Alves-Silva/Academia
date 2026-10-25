@@ -1,5 +1,7 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Instrutor;
+
 import ifsp.edu.sistema_academia.dto.request.PresencaRequest;
 import ifsp.edu.sistema_academia.dto.response.PresencaResponse;
 import ifsp.edu.sistema_academia.exception.AcessoNegadoException;
@@ -10,7 +12,7 @@ import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Inscricao;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.Presenca;
+import ifsp.edu.sistema_academia.model.StatusPresenca;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
@@ -63,7 +65,7 @@ class PresencaServiceTest {
         i1 = new Inscricao(aula, Fixtures.aluno(1L), SEGUNDA, StatusInscricao.CONFIRMADA, Fixtures.AGORA);
         i2 = new Inscricao(aula, Fixtures.aluno(2L), SEGUNDA, StatusInscricao.CONFIRMADA, Fixtures.AGORA);
         i3 = new Inscricao(aula, Fixtures.aluno(3L), SEGUNDA, StatusInscricao.CONFIRMADA, Fixtures.AGORA);
-        when(inscricaoRepository.findByAulaIdAndDataAulaAndStatusOrderByIdAsc(
+        when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
                 20L, SEGUNDA, StatusInscricao.CONFIRMADA)).thenReturn(List.of(i1, i2, i3));
     }
 
@@ -72,9 +74,9 @@ class PresencaServiceTest {
     void registraPresencaEFaltas() {
         PresencaResponse resposta = service.registrar(20L, new PresencaRequest(SEGUNDA, List.of(1L, 2L)), instrutor);
 
-        assertThat(i1.getPresenca()).isEqualTo(Presenca.PRESENTE);
-        assertThat(i2.getPresenca()).isEqualTo(Presenca.PRESENTE);
-        assertThat(i3.getPresenca()).isEqualTo(Presenca.FALTA);
+        assertThat(i1.getPresenca()).isEqualTo(StatusPresenca.PRESENTE);
+        assertThat(i2.getPresenca()).isEqualTo(StatusPresenca.PRESENTE);
+        assertThat(i3.getPresenca()).isEqualTo(StatusPresenca.FALTA);
         assertThat(resposta.presentes()).isEqualTo(2);
         assertThat(resposta.faltas()).isEqualTo(1);
         assertThat(resposta.inscricoes()).hasSize(3);
@@ -83,17 +85,17 @@ class PresencaServiceTest {
     @Test
     void lancamentoPodeSerCorrigido() {
         service.registrar(20L, new PresencaRequest(SEGUNDA, List.of()), instrutor);
-        assertThat(i1.getPresenca()).isEqualTo(Presenca.FALTA);
+        assertThat(i1.getPresenca()).isEqualTo(StatusPresenca.FALTA);
 
         service.registrar(20L, new PresencaRequest(SEGUNDA, List.of(1L)), instrutor);
-        assertThat(i1.getPresenca()).isEqualTo(Presenca.PRESENTE);
+        assertThat(i1.getPresenca()).isEqualTo(StatusPresenca.PRESENTE);
     }
 
     @Test
     void alunoSemInscricaoConfirmadaNaListaDePresenca() {
         assertThatThrownBy(() -> service.registrar(20L, new PresencaRequest(SEGUNDA, List.of(1L, 9L)), instrutor))
                 .isInstanceOf(PresencaInvalidaException.class).hasMessageContaining("[9]");
-        assertThat(i1.getPresenca()).isNull();
+        assertThat(i1.getPresenca()).isEqualTo(StatusPresenca.PENDENTE);
     }
 
     @Test

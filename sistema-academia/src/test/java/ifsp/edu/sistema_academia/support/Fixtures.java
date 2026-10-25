@@ -1,5 +1,9 @@
 package ifsp.edu.sistema_academia.support;
 
+import ifsp.edu.sistema_academia.model.Instrutor;
+
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Mensalidade;
@@ -39,14 +43,13 @@ public final class Fixtures {
         return entidade;
     }
 
-    public static Usuario aluno(Long id) {
-        return comId(new Usuario("Aluno " + id, "0000000000" + id, "aluno" + id + "@teste.com", "hash",
-                Perfil.ALUNO, AGORA), id);
+    public static Aluno aluno(Long id) {
+        return comId(new Aluno("Aluno " + id, "0000000000" + id, "aluno" + id + "@teste.com", "hash", AGORA), id);
     }
 
-    public static Usuario instrutor(Long id) {
-        return comId(new Usuario("Instrutor " + id, "1000000000" + id, "instrutor" + id + "@teste.com", "hash",
-                Perfil.INSTRUTOR, AGORA), id);
+    public static Instrutor instrutor(Long id) {
+        return comId(new Instrutor("Instrutor " + id, "1000000000" + id, "instrutor" + id + "@teste.com", "hash",
+                AGORA), id);
     }
 
     public static Plano plano(Long id, int meses, String valorMensal, int limiteSemanal, Modalidade... modalidades) {
@@ -54,13 +57,13 @@ public final class Fixtures {
                 new HashSet<>(Arrays.asList(modalidades)), limiteSemanal), id);
     }
 
-    public static AulaColetiva aula(Long id, Usuario instrutor, Modalidade modalidade, DayOfWeek dia,
+    public static AulaColetiva aula(Long id, Instrutor instrutor, Modalidade modalidade, DayOfWeek dia,
                                     LocalTime horario, int duracao, int capacidade, LocalDate criadaEm) {
         return comId(new AulaColetiva(modalidade, instrutor, dia, horario, duracao, capacidade, criadaEm), id);
     }
 
     /** Matrícula iniciada em {@code inicio}, com IDs atribuídos à matrícula e às mensalidades. */
-    public static Matricula matricula(Long id, Usuario aluno, Plano plano, LocalDate inicio) {
+    public static Matricula matricula(Long id, Aluno aluno, Plano plano, LocalDate inicio) {
         Matricula matricula = Matricula.iniciar(aluno, plano, inicio, BigDecimal.ZERO);
         comId(matricula, id);
         List<Mensalidade> mensalidades = matricula.getMensalidades();

@@ -37,15 +37,22 @@ class EntradaTreinoERelatoriosFuncionalTest extends FuncionalTestBase {
         postar("/api/checkins", tokenRecepcao(), mapa("alunoId", alunoRegular.id()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.alunoId").value(alunoRegular.id()))
-                .andExpect(jsonPath("$.dataHora", notNullValue()));
+                .andExpect(jsonPath("$.dataHoraEntrada", notNullValue()))
+                .andExpect(jsonPath("$.acessoLiberado").value(true));
 
         // 3. Vencimento da mensalidade foi em 11/03. Avança 6 dias (17/03 -> mais de 5 dias em atraso)
         clock.avancarDias(6);
 
-        // Aluno bloqueado por inadimplência: check-in é recusado
+        // Aluno bloqueado por inadimplência: check-in é recusado (mas a tentativa negada é persistida com motivo)
         postar("/api/checkins", tokenRecepcao(), mapa("alunoId", alunoRegular.id()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("bloqueado")));
+        assertThat(checkinRepository.findByAlunoIdOrderByDataHoraEntradaDesc(alunoRegular.id()))
+                .first()
+                .satisfies(recusado -> {
+                    assertThat(recusado.getAcessoLiberado()).isFalse();
+                    assertThat(recusado.getMotivoBloqueio()).contains("mensalidade vencida");
+                });
     }
 
     @Test

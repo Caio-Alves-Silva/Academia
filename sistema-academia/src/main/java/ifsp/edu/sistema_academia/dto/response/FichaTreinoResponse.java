@@ -11,7 +11,7 @@ public record FichaTreinoResponse(Long id, Long alunoId, Long instrutorId, Strin
 
     public static FichaTreinoResponse from(FichaTreino ficha) {
         return new FichaTreinoResponse(ficha.getId(), ficha.getAluno().getId(), ficha.getInstrutor().getId(),
-                ficha.getInstrutor().getNome(), ficha.getCriadaEm(), ficha.isAtual(), ficha.getObservacoes(),
+                ficha.getInstrutor().getNome(), ficha.getCriadaEm(), ficha.getIsAtual(), ficha.getObservacoes(),
                 ficha.getItens().stream().map(ItemTreinoResponse::from).toList());
     }
 }
