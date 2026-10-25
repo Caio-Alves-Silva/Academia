@@ -1,5 +1,9 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Instrutor;
+
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.request.FichaTreinoRequest;
 import ifsp.edu.sistema_academia.dto.request.ItemTreinoRequest;
 import ifsp.edu.sistema_academia.dto.response.FichaTreinoResponse;
@@ -10,7 +14,8 @@ import ifsp.edu.sistema_academia.model.ItemTreino;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.FichaTreinoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
+import ifsp.edu.sistema_academia.repository.InstrutorRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,20 +43,22 @@ class FichaTreinoServiceTest {
     @Mock
     FichaTreinoRepository fichaRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
+    @Mock
+    InstrutorRepository instrutorRepository;
 
-    final Usuario aluno = Fixtures.aluno(1L);
-    final Usuario instrutor = Fixtures.instrutor(50L);
+    final Aluno aluno = Fixtures.aluno(1L);
+    final Instrutor instrutor = Fixtures.instrutor(50L);
     final UsuarioAutenticado instrutorLogado = new UsuarioAutenticado(50L, "i@a.com", Perfil.INSTRUTOR);
     final UsuarioAutenticado alunoLogado = new UsuarioAutenticado(1L, "a@a.com", Perfil.ALUNO);
     FichaTreinoService service;
 
     @BeforeEach
     void setUp() {
-        service = new FichaTreinoService(fichaRepository, usuarioRepository, Fixtures.relogio(Fixtures.AGORA));
-        when(usuarioRepository.findByIdAndPerfilForUpdate(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
-        when(usuarioRepository.findById(50L)).thenReturn(Optional.of(instrutor));
+        service = new FichaTreinoService(fichaRepository, alunoRepository, instrutorRepository, Fixtures.relogio(Fixtures.AGORA));
+        when(alunoRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
+        when(instrutorRepository.findById(50L)).thenReturn(Optional.of(instrutor));
         when(fichaRepository.save(any(FichaTreino.class))).thenAnswer(inv -> Fixtures.comId(inv.getArgument(0), 8L));
     }
 
@@ -66,11 +73,11 @@ class FichaTreinoServiceTest {
     void novaFichaArquivaAAnterior() {
         FichaTreino anterior = new FichaTreino(aluno, instrutor, Fixtures.AGORA.minusDays(30), null,
                 List.of(new ItemTreino("Remada", 3, 10, new BigDecimal("30.00"))));
-        when(fichaRepository.findByAlunoIdAndAtualTrue(1L)).thenReturn(Optional.of(anterior));
+        when(fichaRepository.findAllByAlunoIdAndIsAtualTrue(1L)).thenReturn(List.of(anterior));
 
         FichaTreinoResponse resposta = service.criar(1L, request(), instrutorLogado);
 
-        assertThat(anterior.isAtual()).isFalse();
+        assertThat(anterior.getIsAtual()).isFalse();
         assertThat(resposta.atual()).isTrue();
         assertThat(resposta.observacoes()).isEqualTo("foco em pernas");
         assertThat(resposta.instrutorId()).isEqualTo(50L);
@@ -81,7 +88,7 @@ class FichaTreinoServiceTest {
 
     @Test
     void primeiraFichaNaoTemAnterior() {
-        when(fichaRepository.findByAlunoIdAndAtualTrue(1L)).thenReturn(Optional.empty());
+        when(fichaRepository.findAllByAlunoIdAndIsAtualTrue(1L)).thenReturn(List.of());
 
         assertThat(service.criar(1L, new FichaTreinoRequest(" ", request().itens()), instrutorLogado)
                 .observacoes()).isNull();
@@ -100,8 +107,8 @@ class FichaTreinoServiceTest {
         FichaTreino velha = Fixtures.comId(new FichaTreino(aluno, instrutor, Fixtures.AGORA.minusDays(30), null,
                 List.of(new ItemTreino("Remada", 3, 10, new BigDecimal("20.00")))), 7L);
         velha.arquivar();
-        when(fichaRepository.findByAlunoIdAndAtualTrue(1L)).thenReturn(Optional.of(atual));
-        when(fichaRepository.findByAlunoIdAndAtualFalseOrderByCriadaEmDescIdDesc(1L)).thenReturn(List.of(velha));
+        when(fichaRepository.findFirstByAlunoIdAndIsAtualTrueOrderByCriadaEmDescIdDesc(1L)).thenReturn(Optional.of(atual));
+        when(fichaRepository.findByAlunoIdAndIsAtualFalseOrderByCriadaEmDescIdDesc(1L)).thenReturn(List.of(velha));
 
         assertThat(service.buscarAtual(1L, alunoLogado).id()).isEqualTo(9L);
         assertThat(service.listarHistorico(1L, alunoLogado)).extracting(FichaTreinoResponse::id).containsExactly(7L);
@@ -118,7 +125,7 @@ class FichaTreinoServiceTest {
 
     @Test
     void semFichaAtual() {
-        when(fichaRepository.findByAlunoIdAndAtualTrue(1L)).thenReturn(Optional.empty());
+        when(fichaRepository.findFirstByAlunoIdAndIsAtualTrueOrderByCriadaEmDescIdDesc(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.buscarAtual(1L, alunoLogado))
                 .isInstanceOf(RecursoNaoEncontradoException.class);

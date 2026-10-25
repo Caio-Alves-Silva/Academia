@@ -11,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,7 +21,7 @@ import java.time.temporal.ChronoUnit;
 
 /** Parcela de uma {@link Matricula}. O vencimento cai no mesmo dia de cada mês. */
 @Entity
-@Table(name = "mensalidades")
+@Table(name = "mensalidade")
 public class Mensalidade {
 
     /** RF05: multa por pagamento após o vencimento. */
@@ -40,33 +42,28 @@ public class Mensalidade {
     @Column(nullable = false)
     private int numero;
 
+    /** Valor devido da parcela (já com eventual desconto de troca de plano, sem multa). */
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal valor;
-
-    /** Desconto aplicado (ex.: crédito proporcional de uma troca de plano). */
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal desconto = BigDecimal.ZERO;
 
     @Column(nullable = false)
     private LocalDate vencimento;
 
     /** Primeiro dia coberto por esta parcela. */
-    @Column(name = "periodo_inicio", nullable = false)
-    private LocalDate periodoInicio;
+    @Column(name = "periodo_inicial", nullable = false)
+    private LocalDate periodoInicial;
 
     /** Último dia coberto por esta parcela. */
     @Column(name = "periodo_fim", nullable = false)
     private LocalDate periodoFim;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private StatusMensalidade status = StatusMensalidade.PENDENTE;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "status_pagamento", nullable = false, length = 20)
+    private StatusPagamento statusPagamento = StatusPagamento.PENDENTE;
 
     @Column(name = "data_pagamento")
     private LocalDate dataPagamento;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal multa = BigDecimal.ZERO;
 
     @Column(name = "valor_pago", precision = 10, scale = 2)
     private BigDecimal valorPago;
@@ -75,22 +72,17 @@ public class Mensalidade {
     }
 
     public Mensalidade(Matricula matricula, int numero, BigDecimal valor, LocalDate vencimento,
-                       LocalDate periodoInicio, LocalDate periodoFim) {
+                       LocalDate periodoInicial, LocalDate periodoFim) {
         this.matricula = matricula;
         this.numero = numero;
         this.valor = valor;
         this.vencimento = vencimento;
-        this.periodoInicio = periodoInicio;
+        this.periodoInicial = periodoInicial;
         this.periodoFim = periodoFim;
     }
 
-    /** Valor da parcela já descontado. */
-    public BigDecimal valorLiquido() {
-        return valor.subtract(desconto);
-    }
-
     public boolean estaPendente() {
-        return status == StatusMensalidade.PENDENTE;
+        return statusPagamento == StatusPagamento.PENDENTE;
     }
 
     /** Pendente e com vencimento anterior a {@code hoje}. */
@@ -100,64 +92,77 @@ public class Mensalidade {
 
     /** Vencida há mais de {@link #DIAS_ATE_BLOQUEIO} dias: bloqueia o aluno. */
     public boolean bloqueiaAluno(LocalDate hoje) {
-        return estaPendente() && vencimento.isBefore(hoje.minusDays(DIAS_ATE_BLOQUEIO));
+        return estaPendente() && vencimento.plusDays(DIAS_ATE_BLOQUEIO).isBefore(hoje);
     }
 
     public long diasEmAtraso(LocalDate hoje) {
         return estaVencida(hoje) ? ChronoUnit.DAYS.between(vencimento, hoje) : 0;
     }
 
-    /** Multa de 2% sobre o valor líquido se (e somente se) o pagamento ocorrer após o vencimento. */
+    /** Multa fixa de 2% sobre o valor se (e somente se) o pagamento ocorrer após o vencimento. */
     public BigDecimal calcularMulta(LocalDate hoje) {
         if (!estaVencida(hoje)) {
             return BigDecimal.ZERO.setScale(2);
         }
-        return valorLiquido().multiply(PERCENTUAL_MULTA_ATRASO).setScale(2, RoundingMode.HALF_UP);
+        return valor.multiply(PERCENTUAL_MULTA_ATRASO).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** Valor total a pagar se o pagamento fosse feito em {@code hoje}. */
+    /** Valor total a pagar se o pagamento fosse feito em {@code hoje} (valor * 1,02 após o vencimento). */
     public BigDecimal valorAPagar(LocalDate hoje) {
-        return valorLiquido().add(calcularMulta(hoje));
+        return valor.add(calcularMulta(hoje)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Multa efetivamente cobrada no pagamento (zero enquanto não paga ou se paga em dia). */
+    public BigDecimal multaPaga() {
+        if (valorPago == null) {
+            return BigDecimal.ZERO.setScale(2);
+        }
+        return valorPago.subtract(valor);
     }
 
     public void pagar(LocalDate hoje) {
         if (!estaPendente()) {
             throw new IllegalStateException("Somente mensalidades pendentes podem ser pagas");
         }
-        this.multa = calcularMulta(hoje);
-        this.valorPago = valorLiquido().add(multa);
+        this.valorPago = valorAPagar(hoje);
         this.dataPagamento = hoje;
-        this.status = StatusMensalidade.PAGA;
+        this.statusPagamento = StatusPagamento.PAGO;
     }
 
     public void cancelar() {
         if (!estaPendente()) {
             throw new IllegalStateException("Somente mensalidades pendentes podem ser canceladas");
         }
-        this.status = StatusMensalidade.CANCELADA;
+        this.statusPagamento = StatusPagamento.CANCELADO;
     }
 
+    /** Abate o desconto do valor da parcela (limitado ao valor da própria parcela). */
     public void aplicarDesconto(BigDecimal desconto) {
-        this.desconto = desconto.min(valor).max(BigDecimal.ZERO);
+        BigDecimal aplicado = desconto.min(valor).max(BigDecimal.ZERO);
+        this.valor = valor.subtract(aplicado);
     }
 
     /**
-     * Parte do valor pago que corresponde a dias ainda não usados depois de {@code hoje}
-     * (o dia de hoje conta como usado). Zero se a parcela não foi paga.
+     * RF06: saldo pro-rata da parcela paga que ainda não foi usado: {@code (valor / diasDoMes) * diasRestantes},
+     * onde {@code diasDoMes} é o tamanho do mês corrente e {@code diasRestantes} são os dias após hoje até o fim do
+     * período coberto (hoje conta como usado). Parcela paga de período futuro volta inteira. Zero se não foi paga.
      */
     public BigDecimal valorNaoUtilizado(LocalDate hoje) {
-        if (status != StatusMensalidade.PAGA) {
+        if (statusPagamento != StatusPagamento.PAGO) {
             return BigDecimal.ZERO.setScale(2);
         }
-        LocalDate primeiroDiaNaoUsado = periodoInicio.isAfter(hoje) ? periodoInicio : hoje.plusDays(1);
-        if (primeiroDiaNaoUsado.isAfter(periodoFim)) {
+        if (periodoInicial.isAfter(hoje)) {
+            return valor.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (!hoje.isBefore(periodoFim)) {
             return BigDecimal.ZERO.setScale(2);
         }
-        long diasNaoUsados = ChronoUnit.DAYS.between(primeiroDiaNaoUsado, periodoFim) + 1;
-        long diasDoPeriodo = ChronoUnit.DAYS.between(periodoInicio, periodoFim) + 1;
-        return valorLiquido()
-                .multiply(BigDecimal.valueOf(diasNaoUsados))
-                .divide(BigDecimal.valueOf(diasDoPeriodo), 2, RoundingMode.HALF_UP);
+        long diasRestantes = ChronoUnit.DAYS.between(hoje, periodoFim);
+        return valor
+                .divide(BigDecimal.valueOf(hoje.lengthOfMonth()), 10, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(diasRestantes))
+                .min(valor)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     public Long getId() {
@@ -176,32 +181,24 @@ public class Mensalidade {
         return valor;
     }
 
-    public BigDecimal getDesconto() {
-        return desconto;
-    }
-
     public LocalDate getVencimento() {
         return vencimento;
     }
 
-    public LocalDate getPeriodoInicio() {
-        return periodoInicio;
+    public LocalDate getPeriodoInicial() {
+        return periodoInicial;
     }
 
     public LocalDate getPeriodoFim() {
         return periodoFim;
     }
 
-    public StatusMensalidade getStatus() {
-        return status;
+    public StatusPagamento getStatusPagamento() {
+        return statusPagamento;
     }
 
     public LocalDate getDataPagamento() {
         return dataPagamento;
-    }
-
-    public BigDecimal getMulta() {
-        return multa;
     }
 
     public BigDecimal getValorPago() {

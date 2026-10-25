@@ -11,16 +11,16 @@ import java.util.List;
 
 public interface CheckinRepository extends JpaRepository<Checkin, Long> {
 
-    List<Checkin> findByAlunoIdOrderByDataHoraDesc(Long alunoId);
+    List<Checkin> findByAlunoIdOrderByDataHoraEntradaDesc(Long alunoId);
 
-    /** Entradas por aluno no intervalo [inicio, fim), incluindo alunos sem nenhuma entrada. */
+    /** Entradas liberadas por aluno no intervalo [inicio, fim), incluindo alunos sem nenhuma entrada. */
     @Query("""
-            select new ifsp.edu.sistema_academia.dto.response.FrequenciaAlunoResponse(u.id, u.nome, count(c))
-            from Usuario u
-            left join Checkin c on c.aluno.id = u.id and c.dataHora >= :inicio and c.dataHora < :fim
-            where u.perfil = ifsp.edu.sistema_academia.model.Perfil.ALUNO
-            group by u.id, u.nome
-            order by count(c) desc, u.nome asc
+            select new ifsp.edu.sistema_academia.dto.response.FrequenciaAlunoResponse(a.id, a.nome, count(c))
+            from Aluno a
+            left join Checkin c on c.aluno.id = a.id and c.acessoLiberado = true
+                and c.dataHoraEntrada >= :inicio and c.dataHoraEntrada < :fim
+            group by a.id, a.nome
+            order by count(c) desc, a.nome asc
             """)
     List<FrequenciaAlunoResponse> frequenciaPorAluno(@Param("inicio") LocalDateTime inicio,
                                                       @Param("fim") LocalDateTime fim);

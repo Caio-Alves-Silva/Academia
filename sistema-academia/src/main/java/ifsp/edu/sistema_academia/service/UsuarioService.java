@@ -2,8 +2,8 @@ package ifsp.edu.sistema_academia.service;
 
 import ifsp.edu.sistema_academia.dto.response.UsuarioResponse;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
-import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.model.Aluno;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,22 +15,22 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class UsuarioService {
 
-    private final UsuarioRepository usuarioRepository;
+    private final AlunoRepository alunoRepository;
 
-    public UsuarioService(UsuarioRepository usuarioRepository) {
-        this.usuarioRepository = usuarioRepository;
+    public UsuarioService(AlunoRepository alunoRepository) {
+        this.alunoRepository = alunoRepository;
     }
 
     public List<UsuarioResponse> listarAlunos(String nome) {
-        List<ifsp.edu.sistema_academia.model.Usuario> alunos = (nome == null || nome.isBlank())
-                ? usuarioRepository.findByPerfilOrderByNomeAsc(Perfil.ALUNO)
-                : usuarioRepository.findByPerfilAndNomeContainingIgnoreCaseOrderByNomeAsc(Perfil.ALUNO, nome.trim());
+        List<Aluno> alunos = (nome == null || nome.isBlank())
+                ? alunoRepository.findAllByOrderByNomeAsc()
+                : alunoRepository.findByNomeContainingIgnoreCaseOrderByNomeAsc(nome.trim());
         return alunos.stream().map(UsuarioResponse::from).toList();
     }
 
     public UsuarioResponse buscarAluno(Long id, UsuarioAutenticado solicitante) {
         solicitante.exigirAcessoAoAluno(id);
-        return usuarioRepository.findByIdAndPerfil(id, Perfil.ALUNO)
+        return alunoRepository.findById(id)
                 .map(UsuarioResponse::from)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", id));
     }

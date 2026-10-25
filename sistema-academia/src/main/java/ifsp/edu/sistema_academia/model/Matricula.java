@@ -14,6 +14,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,7 +27,7 @@ import java.util.List;
  * Matrícula: contrato de um aluno com um plano, com início, fim e as mensalidades daquele período.
  */
 @Entity
-@Table(name = "matriculas")
+@Table(name = "matricula")
 public class Matricula {
 
     /** RF07: multa sobre o valor das mensalidades canceladas em planos de 3 ou 12 meses. */
@@ -37,7 +39,7 @@ public class Matricula {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "aluno_id", nullable = false)
-    private Usuario aluno;
+    private Aluno aluno;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "plano_id", nullable = false)
@@ -50,8 +52,9 @@ public class Matricula {
     private LocalDate dataFim;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private StatusMatricula status = StatusMatricula.ATIVA;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "status_matricula", nullable = false, length = 20)
+    private StatusMatricula statusMatricula = StatusMatricula.ATIVA;
 
     @Column(name = "data_encerramento")
     private LocalDate dataEncerramento;
@@ -59,7 +62,7 @@ public class Matricula {
     @Column(name = "multa_cancelamento", nullable = false, precision = 10, scale = 2)
     private BigDecimal multaCancelamento = BigDecimal.ZERO;
 
-    @OneToMany(mappedBy = "matricula", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "matricula", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numero ASC")
     private List<Mensalidade> mensalidades = new ArrayList<>();
 
@@ -70,9 +73,9 @@ public class Matricula {
      * Cria a matrícula e gera todas as mensalidades da vigência (RF04): a primeira vence na data de início e as
      * demais no mesmo dia dos meses seguintes (ajustado ao último dia quando o mês é mais curto).
      *
-     * @param descontoPrimeiraMensalidade crédito a abater da primeira parcela (limitado ao valor da parcela)
+     * @param descontoPrimeiraMensalidade crédito a abater do valor da primeira parcela (limitado ao valor dela)
      */
-    public static Matricula iniciar(Usuario aluno, Plano plano, LocalDate inicio,
+    public static Matricula iniciar(Aluno aluno, Plano plano, LocalDate inicio,
                                     BigDecimal descontoPrimeiraMensalidade) {
         Matricula matricula = new Matricula();
         matricula.aluno = aluno;
@@ -97,15 +100,15 @@ public class Matricula {
 
     /** Ativa significa: status ATIVA e a vigência ainda não terminou. */
     public boolean estaAtiva(LocalDate hoje) {
-        return status == StatusMatricula.ATIVA && !hoje.isAfter(dataFim);
+        return statusMatricula == StatusMatricula.ATIVA && !hoje.isAfter(dataFim);
     }
 
-    /** Status exibido: uma matrícula ATIVA cuja vigência terminou é apresentada como CONCLUIDA. */
+    /** Status exibido: uma matrícula ATIVA cuja vigência terminou é apresentada como ENCERRADA. */
     public StatusMatricula statusEfetivo(LocalDate hoje) {
-        if (status == StatusMatricula.ATIVA && hoje.isAfter(dataFim)) {
-            return StatusMatricula.CONCLUIDA;
+        if (statusMatricula == StatusMatricula.ATIVA && hoje.isAfter(dataFim)) {
+            return StatusMatricula.ENCERRADA;
         }
-        return status;
+        return statusMatricula;
     }
 
     /** Mensalidades pendentes com vencimento depois de hoje. */
@@ -115,7 +118,7 @@ public class Matricula {
                 .toList();
     }
 
-    /** Soma, sobre as parcelas pagas, do valor correspondente aos dias ainda não usados (RF06). */
+    /** RF06: soma, sobre as parcelas pagas, do valor pro-rata dos dias ainda não usados. */
     public BigDecimal creditoNaoUtilizado(LocalDate hoje) {
         return mensalidades.stream()
                 .map(m -> m.valorNaoUtilizado(hoje))
@@ -123,17 +126,17 @@ public class Matricula {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** RF06: encerra o contrato por troca de plano e cancela as mensalidades futuras. */
+    /** RF06: encerra o contrato por troca de plano e cancela as mensalidades pendentes. */
     public List<Mensalidade> encerrarPorTroca(LocalDate hoje) {
-        List<Mensalidade> canceladas = cancelarMensalidadesFuturas(hoje);
-        this.status = StatusMatricula.ENCERRADA;
+        List<Mensalidade> canceladas = cancelarMensalidadesPendentes(hoje);
+        this.statusMatricula = StatusMatricula.ENCERRADA;
         this.dataEncerramento = hoje;
         return canceladas;
     }
 
     /**
      * RF07: cancela o contrato e as mensalidades futuras. Em planos de 3 ou 12 meses registra a multa de 10% sobre
-     * o valor das mensalidades canceladas.
+     * a soma dos valores das mensalidades canceladas.
      */
     public List<Mensalidade> cancelar(LocalDate hoje) {
         List<Mensalidade> canceladas = cancelarMensalidadesFuturas(hoje);
@@ -142,15 +145,15 @@ public class Matricula {
                     .multiply(PERCENTUAL_MULTA_CANCELAMENTO)
                     .setScale(2, RoundingMode.HALF_UP);
         }
-        this.status = StatusMatricula.CANCELADA;
+        this.statusMatricula = StatusMatricula.CANCELADA;
         this.dataEncerramento = hoje;
         return canceladas;
     }
 
-    /** Soma dos valores líquidos das mensalidades informadas. */
+    /** Soma dos valores das mensalidades informadas. */
     public static BigDecimal valorTotal(List<Mensalidade> mensalidades) {
         return mensalidades.stream()
-                .map(Mensalidade::valorLiquido)
+                .map(Mensalidade::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
     }
@@ -161,11 +164,20 @@ public class Matricula {
         return futuras;
     }
 
+    /** Cancela as pendentes que ainda não estão vencidas; dívidas já vencidas permanecem cobráveis. */
+    private List<Mensalidade> cancelarMensalidadesPendentes(LocalDate hoje) {
+        List<Mensalidade> pendentes = mensalidades.stream()
+                .filter(m -> m.estaPendente() && !m.getVencimento().isBefore(hoje))
+                .toList();
+        pendentes.forEach(Mensalidade::cancelar);
+        return pendentes;
+    }
+
     public Long getId() {
         return id;
     }
 
-    public Usuario getAluno() {
+    public Aluno getAluno() {
         return aluno;
     }
 
@@ -181,8 +193,8 @@ public class Matricula {
         return dataFim;
     }
 
-    public StatusMatricula getStatus() {
-        return status;
+    public StatusMatricula getStatusMatricula() {
+        return statusMatricula;
     }
 
     public LocalDate getDataEncerramento() {

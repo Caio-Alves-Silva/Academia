@@ -2,7 +2,7 @@ package ifsp.edu.sistema_academia.funcional;
 
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.StatusMatricula;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.support.FuncionalTestBase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,7 +90,7 @@ class PlanosEMatriculasFuncionalTest extends FuncionalTestBase {
         // Pagamento da 1ª mensalidade no dia do vencimento (sem multa)
         postar("/api/mensalidades/" + m1Id + "/pagamento", aluno.token(), null)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAGA"))
+                .andExpect(jsonPath("$.status").value("PAGO"))
                 .andExpect(jsonPath("$.multa").value(0))
                 .andExpect(jsonPath("$.valorPago").value(100.00));
 
@@ -100,7 +100,7 @@ class PlanosEMatriculasFuncionalTest extends FuncionalTestBase {
         // Pagamento com atraso: multa de 2% (2.00 em 100.00 -> total 102.00)
         postar("/api/mensalidades/" + m2Id + "/pagamento", aluno.token(), null)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAGA"))
+                .andExpect(jsonPath("$.status").value("PAGO"))
                 .andExpect(jsonPath("$.multa").value(2.00))
                 .andExpect(jsonPath("$.valorPago").value(102.00));
     }

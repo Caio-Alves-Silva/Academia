@@ -8,7 +8,9 @@ import java.util.Optional;
 
 public interface FichaTreinoRepository extends JpaRepository<FichaTreino, Long> {
 
-    Optional<FichaTreino> findByAlunoIdAndAtualTrue(Long alunoId);
+    Optional<FichaTreino> findFirstByAlunoIdAndIsAtualTrueOrderByCriadaEmDescIdDesc(Long alunoId);
 
-    List<FichaTreino> findByAlunoIdAndAtualFalseOrderByCriadaEmDescIdDesc(Long alunoId);
+    List<FichaTreino> findAllByAlunoIdAndIsAtualTrue(Long alunoId);
+
+    List<FichaTreino> findByAlunoIdAndIsAtualFalseOrderByCriadaEmDescIdDesc(Long alunoId);
 }

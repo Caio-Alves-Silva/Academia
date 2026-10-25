@@ -1,7 +1,7 @@
 package ifsp.edu.sistema_academia.funcional;
 
 import ifsp.edu.sistema_academia.model.Modalidade;
-import ifsp.edu.sistema_academia.model.Presenca;
+import ifsp.edu.sistema_academia.model.StatusPresenca;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
 import ifsp.edu.sistema_academia.support.FuncionalTestBase;
 import org.junit.jupiter.api.DisplayName;

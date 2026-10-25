@@ -1,5 +1,7 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Instrutor;
+
 import ifsp.edu.sistema_academia.dto.request.AulaRequest;
 import ifsp.edu.sistema_academia.dto.response.AulaResponse;
 import ifsp.edu.sistema_academia.exception.ConflitoHorarioInstrutorException;
@@ -10,7 +12,7 @@ import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.InstrutorRepository;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,15 +43,15 @@ class AulaServiceTest {
     @Mock
     AulaColetivaRepository aulaRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    InstrutorRepository instrutorRepository;
 
-    final Usuario instrutor = Fixtures.instrutor(50L);
+    final Instrutor instrutor = Fixtures.instrutor(50L);
     AulaService service;
 
     @BeforeEach
     void setUp() {
-        service = new AulaService(aulaRepository, usuarioRepository, Fixtures.relogio(Fixtures.AGORA));
-        when(usuarioRepository.findByIdAndPerfilForUpdate(50L, Perfil.INSTRUTOR)).thenReturn(Optional.of(instrutor));
+        service = new AulaService(aulaRepository, instrutorRepository, Fixtures.relogio(Fixtures.AGORA));
+        when(instrutorRepository.findByIdForUpdate(50L)).thenReturn(Optional.of(instrutor));
         when(aulaRepository.save(any(AulaColetiva.class))).thenAnswer(inv -> Fixtures.comId(inv.getArgument(0), 1L));
     }
 

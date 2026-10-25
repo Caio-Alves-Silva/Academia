@@ -9,7 +9,7 @@ import ifsp.edu.sistema_academia.exception.PresencaInvalidaException;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.model.AulaColetiva;
 import ifsp.edu.sistema_academia.model.Inscricao;
-import ifsp.edu.sistema_academia.model.Presenca;
+import ifsp.edu.sistema_academia.model.StatusPresenca;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
@@ -61,7 +61,7 @@ public class PresencaService {
             throw new DataAulaInvalidaException("A aula de " + data + " ainda não começou");
         }
 
-        List<Inscricao> confirmadas = inscricaoRepository.findByAulaIdAndDataAulaAndStatusOrderByIdAsc(
+        List<Inscricao> confirmadas = inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
                 aulaId, data, StatusInscricao.CONFIRMADA);
         Set<Long> presentes = new HashSet<>(request.alunosPresentes());
         Set<Long> idsConfirmados = confirmadas.stream().map(i -> i.getAluno().getId()).collect(Collectors.toSet());
@@ -75,7 +75,7 @@ public class PresencaService {
 
         confirmadas.forEach(i -> i.registrarPresenca(presentes.contains(i.getAluno().getId())));
 
-        int totalPresentes = (int) confirmadas.stream().filter(i -> i.getPresenca() == Presenca.PRESENTE).count();
+        int totalPresentes = (int) confirmadas.stream().filter(i -> i.getPresenca() == StatusPresenca.PRESENTE).count();
         List<InscricaoResponse> inscricoes = confirmadas.stream()
                 .map(i -> InscricaoResponse.from(i, null))
                 .toList();

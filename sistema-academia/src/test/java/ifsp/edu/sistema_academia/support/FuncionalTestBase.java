@@ -3,6 +3,7 @@ package ifsp.edu.sistema_academia.support;
 import com.jayway.jsonpath.JsonPath;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.CheckinRepository;
 import ifsp.edu.sistema_academia.repository.FichaTreinoRepository;
@@ -62,6 +63,8 @@ public abstract class FuncionalTestBase {
     @Autowired
     protected UsuarioRepository usuarioRepository;
     @Autowired
+    protected AlunoRepository alunoRepository;
+    @Autowired
     protected PlanoRepository planoRepository;
     @Autowired
     protected MatriculaRepository matriculaRepository;
@@ -91,7 +94,7 @@ public abstract class FuncionalTestBase {
         matriculaRepository.deleteAll();
         aulaRepository.deleteAll();
         planoRepository.deleteAll();
-        usuarioRepository.deleteAll(usuarioRepository.findByPerfilOrderByNomeAsc(Perfil.ALUNO));
+        alunoRepository.deleteAll();
     }
 
     // ---------- requisições ----------

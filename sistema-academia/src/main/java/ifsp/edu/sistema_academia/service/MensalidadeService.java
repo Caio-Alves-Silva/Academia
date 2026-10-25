@@ -5,10 +5,9 @@ import ifsp.edu.sistema_academia.exception.MensalidadeCanceladaException;
 import ifsp.edu.sistema_academia.exception.MensalidadeJaPagaException;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.model.Mensalidade;
-import ifsp.edu.sistema_academia.model.Perfil;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.repository.MensalidadeRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,26 +21,26 @@ import java.util.List;
 public class MensalidadeService {
 
     private final MensalidadeRepository mensalidadeRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final AlunoRepository alunoRepository;
     private final Clock clock;
 
-    public MensalidadeService(MensalidadeRepository mensalidadeRepository, UsuarioRepository usuarioRepository,
+    public MensalidadeService(MensalidadeRepository mensalidadeRepository, AlunoRepository alunoRepository,
                               Clock clock) {
         this.mensalidadeRepository = mensalidadeRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.alunoRepository = alunoRepository;
         this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public List<MensalidadeResponse> listarPorAluno(Long alunoId, StatusMensalidade status,
+    public List<MensalidadeResponse> listarPorAluno(Long alunoId, StatusPagamento status,
                                                     UsuarioAutenticado solicitante) {
         solicitante.exigirAcessoAoAluno(alunoId);
-        usuarioRepository.findByIdAndPerfil(alunoId, Perfil.ALUNO)
+        alunoRepository.findById(alunoId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Aluno", alunoId));
         LocalDate hoje = LocalDate.now(clock);
         List<Mensalidade> mensalidades = status == null
                 ? mensalidadeRepository.findByMatriculaAlunoIdOrderByVencimentoAscIdAsc(alunoId)
-                : mensalidadeRepository.findByMatriculaAlunoIdAndStatusOrderByVencimentoAscIdAsc(alunoId, status);
+                : mensalidadeRepository.findByMatriculaAlunoIdAndStatusPagamentoOrderByVencimentoAscIdAsc(alunoId, status);
         return mensalidades.stream().map(m -> MensalidadeResponse.from(m, hoje)).toList();
     }
 
@@ -60,10 +59,10 @@ public class MensalidadeService {
         Mensalidade mensalidade = mensalidadeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Mensalidade", id));
         solicitante.exigirAcessoAoAluno(mensalidade.getMatricula().getAluno().getId());
-        if (mensalidade.getStatus() == StatusMensalidade.PAGA) {
+        if (mensalidade.getStatusPagamento() == StatusPagamento.PAGO) {
             throw new MensalidadeJaPagaException(id);
         }
-        if (mensalidade.getStatus() == StatusMensalidade.CANCELADA) {
+        if (mensalidade.getStatusPagamento() == StatusPagamento.CANCELADO) {
             throw new MensalidadeCanceladaException(id);
         }
         mensalidade.pagar(hoje);

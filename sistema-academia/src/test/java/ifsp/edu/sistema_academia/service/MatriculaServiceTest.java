@@ -1,5 +1,7 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.request.MatriculaRequest;
 import ifsp.edu.sistema_academia.dto.request.TrocaPlanoRequest;
 import ifsp.edu.sistema_academia.dto.response.CancelamentoMatriculaResponse;
@@ -15,11 +17,11 @@ import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Plano;
 import ifsp.edu.sistema_academia.model.StatusMatricula;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.MatriculaRepository;
 import ifsp.edu.sistema_academia.repository.PlanoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,11 +52,11 @@ class MatriculaServiceTest {
     @Mock
     MatriculaRepository matriculaRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
     @Mock
     PlanoRepository planoRepository;
 
-    final Usuario aluno = Fixtures.aluno(1L);
+    final Aluno aluno = Fixtures.aluno(1L);
     final Plano trimestral = Fixtures.plano(10L, 3, "300.00", 3, Modalidade.SPINNING);
     final Plano mensal = Fixtures.plano(11L, 1, "100.00", 3, Modalidade.SPINNING);
     final Plano caro = Fixtures.plano(12L, 3, "400.00", 3, Modalidade.SPINNING);
@@ -64,8 +66,8 @@ class MatriculaServiceTest {
     @BeforeEach
     void setUp() {
         service = servicoEm(Fixtures.AGORA);
-        when(usuarioRepository.findByIdAndPerfilForUpdate(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
         when(planoRepository.findById(10L)).thenReturn(Optional.of(trimestral));
         when(planoRepository.findById(11L)).thenReturn(Optional.of(mensal));
         when(planoRepository.findById(12L)).thenReturn(Optional.of(caro));
@@ -73,7 +75,7 @@ class MatriculaServiceTest {
     }
 
     private MatriculaService servicoEm(LocalDateTime agora) {
-        return new MatriculaService(matriculaRepository, usuarioRepository, planoRepository,
+        return new MatriculaService(matriculaRepository, alunoRepository, planoRepository,
                 Fixtures.relogio(agora));
     }
 
@@ -132,13 +134,12 @@ class MatriculaServiceTest {
         assertThat(resposta.mensalidadesCanceladas()).isEqualTo(2);
         assertThat(resposta.matriculaEncerrada().status()).isEqualTo(StatusMatricula.ENCERRADA);
         assertThat(resposta.matriculaEncerrada().mensalidades()).extracting("status")
-                .containsExactly(StatusMensalidade.PAGA, StatusMensalidade.CANCELADA, StatusMensalidade.CANCELADA);
+                .containsExactly(StatusPagamento.PAGO, StatusPagamento.CANCELADO, StatusPagamento.CANCELADO);
         assertThat(resposta.novaMatricula().status()).isEqualTo(StatusMatricula.ATIVA);
         assertThat(resposta.novaMatricula().plano().id()).isEqualTo(12L);
         assertThat(resposta.novaMatricula().dataInicio()).isEqualTo(LocalDate.of(2026, 3, 21));
-        assertThat(resposta.novaMatricula().mensalidades().get(0).desconto()).isEqualByComparingTo("193.55");
-        assertThat(resposta.novaMatricula().mensalidades().get(0).valorLiquido()).isEqualByComparingTo("206.45");
-        assertThat(resposta.novaMatricula().mensalidades().get(1).desconto()).isEqualByComparingTo("0");
+        assertThat(resposta.novaMatricula().mensalidades().get(0).valor()).isEqualByComparingTo("206.45");
+        assertThat(resposta.novaMatricula().mensalidades().get(1).valor()).isEqualByComparingTo("400.00");
     }
 
     @Test
@@ -152,7 +153,7 @@ class MatriculaServiceTest {
 
         assertThat(resposta.creditoCalculado()).isEqualByComparingTo("193.55");
         assertThat(resposta.descontoAplicado()).isEqualByComparingTo("100.00");
-        assertThat(resposta.novaMatricula().mensalidades().get(0).valorLiquido()).isEqualByComparingTo("0.00");
+        assertThat(resposta.novaMatricula().mensalidades().get(0).valor()).isEqualByComparingTo("0.00");
     }
 
     @Test
@@ -162,7 +163,7 @@ class MatriculaServiceTest {
 
         assertThatThrownBy(() -> service.trocarPlano(5L, new TrocaPlanoRequest(10L)))
                 .isInstanceOf(RegraNegocioException.class).hasMessageContaining("diferente");
-        assertThat(atual.getStatus()).isEqualTo(StatusMatricula.ATIVA);
+        assertThat(atual.getStatusMatricula()).isEqualTo(StatusMatricula.ATIVA);
     }
 
     @Test
@@ -187,7 +188,7 @@ class MatriculaServiceTest {
         assertThat(resposta.valorMensalidadesCanceladas()).isEqualByComparingTo("600.00");
         assertThat(resposta.multaCancelamento()).isEqualByComparingTo("60.00");
         assertThat(resposta.matricula().status()).isEqualTo(StatusMatricula.CANCELADA);
-        assertThat(atual.getStatus()).isEqualTo(StatusMatricula.CANCELADA);
+        assertThat(atual.getStatusMatricula()).isEqualTo(StatusMatricula.CANCELADA);
     }
 
     @Test

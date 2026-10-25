@@ -4,7 +4,7 @@ import ifsp.edu.sistema_academia.exception.AlunoBloqueadoException;
 import ifsp.edu.sistema_academia.exception.MatriculaNaoAtivaException;
 import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Mensalidade;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.repository.MatriculaRepository;
 import ifsp.edu.sistema_academia.repository.MensalidadeRepository;
 import org.springframework.stereotype.Service;
@@ -38,8 +38,8 @@ public class SituacaoAlunoService {
     /** Bloqueado = possui mensalidade pendente vencida há mais de 5 dias (de qualquer matrícula). */
     public boolean estaBloqueado(Long alunoId) {
         LocalDate limite = LocalDate.now(clock).minusDays(Mensalidade.DIAS_ATE_BLOQUEIO);
-        return mensalidadeRepository.existsByMatriculaAlunoIdAndStatusAndVencimentoBefore(
-                alunoId, StatusMensalidade.PENDENTE, limite);
+        return mensalidadeRepository.existsByMatriculaAlunoIdAndStatusPagamentoAndVencimentoBefore(
+                alunoId, StatusPagamento.PENDENTE, limite);
     }
 
     /** Verdadeiro se o aluno tem matrícula ativa e não está bloqueado. */

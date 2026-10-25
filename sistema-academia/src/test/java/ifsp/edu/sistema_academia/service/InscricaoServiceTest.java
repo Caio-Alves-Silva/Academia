@@ -1,5 +1,9 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Instrutor;
+
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.request.InscricaoRequest;
 import ifsp.edu.sistema_academia.dto.response.CancelamentoInscricaoResponse;
 import ifsp.edu.sistema_academia.dto.response.InscricaoResponse;
@@ -20,12 +24,12 @@ import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Modalidade;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Plano;
-import ifsp.edu.sistema_academia.model.Presenca;
+import ifsp.edu.sistema_academia.model.StatusPresenca;
 import ifsp.edu.sistema_academia.model.StatusInscricao;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.AulaColetivaRepository;
 import ifsp.edu.sistema_academia.repository.InscricaoRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.security.UsuarioAutenticado;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,12 +66,12 @@ class InscricaoServiceTest {
     @Mock
     AulaColetivaRepository aulaRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
     @Mock
     SituacaoAlunoService situacaoAlunoService;
 
-    final Usuario aluno = Fixtures.aluno(1L);
-    final Usuario instrutor = Fixtures.instrutor(50L);
+    final Aluno aluno = Fixtures.aluno(1L);
+    final Instrutor instrutor = Fixtures.instrutor(50L);
     final Plano plano = Fixtures.plano(10L, 3, "100.00", 2, Modalidade.SPINNING, Modalidade.YOGA);
     final Matricula matricula = Fixtures.matricula(7L, aluno, plano, LocalDate.of(2026, 3, 1));
     final AulaColetiva aula = Fixtures.aula(20L, instrutor, Modalidade.SPINNING, DayOfWeek.FRIDAY,
@@ -78,10 +82,10 @@ class InscricaoServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new InscricaoService(inscricaoRepository, aulaRepository, usuarioRepository,
+        service = new InscricaoService(inscricaoRepository, aulaRepository, alunoRepository,
                 situacaoAlunoService, Fixtures.relogio(Fixtures.AGORA));
-        when(usuarioRepository.findByIdAndPerfilForUpdate(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
         when(aulaRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(aula));
         when(aulaRepository.findById(20L)).thenReturn(Optional.of(aula));
         when(situacaoAlunoService.exigirLiberado(1L)).thenReturn(matricula);
@@ -93,7 +97,7 @@ class InscricaoServiceTest {
         return service.inscrever(20L, new InscricaoRequest(data), logado);
     }
 
-    private Inscricao inscricao(Long id, Usuario dono, StatusInscricao status, AulaColetiva da, LocalDate data) {
+    private Inscricao inscricao(Long id, Aluno dono, StatusInscricao status, AulaColetiva da, LocalDate data) {
         Inscricao inscricao = Fixtures.comId(new Inscricao(da, dono, data, status, Fixtures.AGORA), id);
         when(inscricaoRepository.findAulaIdById(id)).thenReturn(Optional.of(da.getId()));
         when(inscricaoRepository.findById(id)).thenReturn(Optional.of(inscricao));
@@ -105,7 +109,7 @@ class InscricaoServiceTest {
     @Test
     @DisplayName("com vaga disponível a inscrição é confirmada")
     void inscricaoConfirmada() {
-        when(inscricaoRepository.countByAulaIdAndDataAulaAndStatus(20L, SEXTA, StatusInscricao.CONFIRMADA))
+        when(inscricaoRepository.countByAulaColetivaIdAndDataAulaAndStatus(20L, SEXTA, StatusInscricao.CONFIRMADA))
                 .thenReturn(1L);
 
         InscricaoResponse resposta = inscrever(SEXTA);
@@ -119,10 +123,16 @@ class InscricaoServiceTest {
     @Test
     @DisplayName("sem vaga o aluno entra na lista de espera, por ordem de chegada")
     void listaDeEspera() {
-        when(inscricaoRepository.countByAulaIdAndDataAulaAndStatus(20L, SEXTA, StatusInscricao.CONFIRMADA))
+        when(inscricaoRepository.countByAulaColetivaIdAndDataAulaAndStatus(20L, SEXTA, StatusInscricao.CONFIRMADA))
                 .thenReturn(2L);
-        when(inscricaoRepository.countByAulaIdAndDataAulaAndStatusAndIdLessThanEqual(
-                20L, SEXTA, StatusInscricao.LISTA_ESPERA, 99L)).thenReturn(3L);
+        Inscricao i1 = inscricao(97L, Fixtures.aluno(2L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
+        Inscricao i2 = inscricao(98L, Fixtures.aluno(3L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
+        when(inscricaoRepository.save(any(Inscricao.class))).thenAnswer(inv -> {
+            Inscricao nova = Fixtures.comId(inv.getArgument(0), 99L);
+            when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
+                    20L, SEXTA, StatusInscricao.LISTA_ESPERA)).thenReturn(List.of(i1, i2, nova));
+            return nova;
+        });
 
         InscricaoResponse resposta = inscrever(SEXTA);
 
@@ -190,17 +200,17 @@ class InscricaoServiceTest {
     @DisplayName("2 faltas na semana anterior impedem a inscrição; 1 falta não")
     void bloqueioPorFaltas() {
         when(inscricaoRepository.countByAlunoIdAndDataAulaBetweenAndPresenca(
-                1L, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 8), Presenca.FALTA)).thenReturn(1L);
+                1L, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 8), StatusPresenca.FALTA)).thenReturn(1L);
         assertThat(inscrever(SEXTA).status()).isEqualTo(StatusInscricao.CONFIRMADA);
 
         when(inscricaoRepository.countByAlunoIdAndDataAulaBetweenAndPresenca(
-                1L, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 8), Presenca.FALTA)).thenReturn(2L);
+                1L, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 8), StatusPresenca.FALTA)).thenReturn(2L);
         assertThatThrownBy(() -> inscrever(SEXTA)).isInstanceOf(BloqueioPorFaltasException.class);
     }
 
     @Test
     void inscricaoDuplicada() {
-        when(inscricaoRepository.existsByAulaIdAndAlunoIdAndDataAulaAndStatusIn(
+        when(inscricaoRepository.existsByAulaColetivaIdAndAlunoIdAndDataAulaAndStatusIn(
                 eq(20L), eq(1L), eq(SEXTA), any())).thenReturn(true);
 
         assertThatThrownBy(() -> inscrever(SEXTA)).isInstanceOf(InscricaoDuplicadaException.class);
@@ -242,7 +252,7 @@ class InscricaoServiceTest {
         Inscricao primeiro = inscricao(31L, Fixtures.aluno(2L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
         Inscricao segundo = inscricao(32L, Fixtures.aluno(3L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
         Inscricao terceiro = inscricao(33L, Fixtures.aluno(4L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
-        when(inscricaoRepository.findByAulaIdAndDataAulaAndStatusOrderByIdAsc(
+        when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
                 20L, SEXTA, StatusInscricao.LISTA_ESPERA)).thenReturn(List.of(primeiro, segundo, terceiro));
         when(situacaoAlunoService.podeFrequentar(2L)).thenReturn(false); // ficou inadimplente
         when(situacaoAlunoService.podeFrequentar(3L)).thenReturn(true);
@@ -271,7 +281,7 @@ class InscricaoServiceTest {
     void cancelarNaListaDeEsperaNaoLiberaVaga() {
         Inscricao naFila = inscricao(31L, aluno, StatusInscricao.LISTA_ESPERA, aula, SEXTA);
         Inscricao outro = inscricao(32L, Fixtures.aluno(3L), StatusInscricao.LISTA_ESPERA, aula, SEXTA);
-        when(inscricaoRepository.findByAulaIdAndDataAulaAndStatusOrderByIdAsc(
+        when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
                 20L, SEXTA, StatusInscricao.LISTA_ESPERA)).thenReturn(List.of(naFila, outro));
         when(situacaoAlunoService.podeFrequentar(3L)).thenReturn(true);
 
@@ -331,10 +341,10 @@ class InscricaoServiceTest {
         Inscricao naFila = inscricao(31L, aluno, StatusInscricao.LISTA_ESPERA, aula, SEXTA);
         when(inscricaoRepository.findByAlunoIdOrderByDataAulaDescIdDesc(1L))
                 .thenReturn(List.of(naFila, confirmada));
-        when(inscricaoRepository.findByAulaIdAndDataAulaAndStatusInOrderByIdAsc(eq(20L), eq(SEXTA), any()))
+        when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusInOrderByCriadaEmAscIdAsc(eq(20L), eq(SEXTA), any()))
                 .thenReturn(List.of(confirmada, naFila));
-        when(inscricaoRepository.countByAulaIdAndDataAulaAndStatusAndIdLessThanEqual(
-                20L, SEXTA, StatusInscricao.LISTA_ESPERA, 31L)).thenReturn(1L);
+        when(inscricaoRepository.findByAulaColetivaIdAndDataAulaAndStatusOrderByCriadaEmAscIdAsc(
+                20L, SEXTA, StatusInscricao.LISTA_ESPERA)).thenReturn(List.of(naFila));
 
         assertThat(service.listarPorAluno(1L, logado)).hasSize(2);
         assertThat(service.listarPorOcorrencia(20L, SEXTA)).extracting(InscricaoResponse::posicaoListaEspera)

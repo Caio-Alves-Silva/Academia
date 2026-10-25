@@ -1,15 +1,19 @@
 package ifsp.edu.sistema_academia.service;
 
+import ifsp.edu.sistema_academia.model.Aluno;
+
 import ifsp.edu.sistema_academia.dto.request.CheckinRequest;
 import ifsp.edu.sistema_academia.dto.response.CheckinResponse;
 import ifsp.edu.sistema_academia.exception.AlunoBloqueadoException;
 import ifsp.edu.sistema_academia.exception.MatriculaNaoAtivaException;
 import ifsp.edu.sistema_academia.exception.RecursoNaoEncontradoException;
 import ifsp.edu.sistema_academia.model.Checkin;
+import ifsp.edu.sistema_academia.model.TipoAcesso;
+import org.mockito.ArgumentCaptor;
 import ifsp.edu.sistema_academia.model.Perfil;
 import ifsp.edu.sistema_academia.model.Usuario;
 import ifsp.edu.sistema_academia.repository.CheckinRepository;
-import ifsp.edu.sistema_academia.repository.UsuarioRepository;
+import ifsp.edu.sistema_academia.repository.AlunoRepository;
 import ifsp.edu.sistema_academia.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,18 +40,18 @@ class CheckinServiceTest {
     @Mock
     CheckinRepository checkinRepository;
     @Mock
-    UsuarioRepository usuarioRepository;
+    AlunoRepository alunoRepository;
     @Mock
     SituacaoAlunoService situacaoAlunoService;
 
-    final Usuario aluno = Fixtures.aluno(1L);
+    final Aluno aluno = Fixtures.aluno(1L);
     CheckinService service;
 
     @BeforeEach
     void setUp() {
-        service = new CheckinService(checkinRepository, usuarioRepository, situacaoAlunoService,
+        service = new CheckinService(checkinRepository, alunoRepository, situacaoAlunoService,
                 Fixtures.relogio(Fixtures.AGORA));
-        when(usuarioRepository.findByIdAndPerfil(1L, Perfil.ALUNO)).thenReturn(Optional.of(aluno));
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
         when(checkinRepository.save(any(Checkin.class))).thenAnswer(inv -> Fixtures.comId(inv.getArgument(0), 5L));
     }
 
@@ -56,20 +60,33 @@ class CheckinServiceTest {
         CheckinResponse resposta = service.registrar(new CheckinRequest(1L));
 
         assertThat(resposta.alunoId()).isEqualTo(1L);
-        assertThat(resposta.dataHora()).isEqualTo(Fixtures.AGORA);
+        assertThat(resposta.dataHoraEntrada()).isEqualTo(Fixtures.AGORA);
+        assertThat(resposta.acessoLiberado()).isTrue();
+        assertThat(resposta.motivoBloqueio()).isNull();
+        assertThat(resposta.tipoAcesso()).isEqualTo(TipoAcesso.RECEPCAO);
         verify(situacaoAlunoService).exigirLiberado(1L);
     }
 
     @Test
-    @DisplayName("aluno bloqueado ou sem matrícula ativa é recusado e nada é gravado")
+    @DisplayName("aluno bloqueado ou sem matrícula ativa é recusado, mas a tentativa é gravada com o motivo")
     void recusaBloqueadoOuSemMatricula() {
         when(situacaoAlunoService.exigirLiberado(1L)).thenThrow(new AlunoBloqueadoException());
-        assertThatThrownBy(() -> service.registrar(new CheckinRequest(1L))).isInstanceOf(AlunoBloqueadoException.class);
+        assertThatThrownBy(() -> service.registrar(new CheckinRequest(1L, TipoAcesso.CATRACA)))
+                .isInstanceOf(AlunoBloqueadoException.class);
 
+        ArgumentCaptor<Checkin> gravado = ArgumentCaptor.forClass(Checkin.class);
+        verify(checkinRepository).save(gravado.capture());
+        assertThat(gravado.getValue().getAcessoLiberado()).isFalse();
+        assertThat(gravado.getValue().getTipoAcesso()).isEqualTo(TipoAcesso.CATRACA);
+        assertThat(gravado.getValue().getMotivoBloqueio()).contains("mensalidade vencida");
+
+        org.mockito.Mockito.reset(checkinRepository);
         org.mockito.Mockito.doThrow(MatriculaNaoAtivaException.doAluno(1L)).when(situacaoAlunoService).exigirLiberado(1L);
         assertThatThrownBy(() -> service.registrar(new CheckinRequest(1L)))
                 .isInstanceOf(MatriculaNaoAtivaException.class);
-        verify(checkinRepository, never()).save(any());
+        verify(checkinRepository).save(gravado.capture());
+        assertThat(gravado.getValue().getAcessoLiberado()).isFalse();
+        assertThat(gravado.getValue().getMotivoBloqueio()).contains("não possui matrícula ativa");
     }
 
     @Test

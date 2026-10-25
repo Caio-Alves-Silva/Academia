@@ -12,6 +12,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -19,7 +21,7 @@ import java.util.Set;
 
 /** Plano: a oferta da academia (duração, valor e o que inclui). Não é o contrato do aluno — ver {@link Matricula}. */
 @Entity
-@Table(name = "planos")
+@Table(name = "plano")
 public class Plano {
 
     @Id
@@ -38,6 +40,7 @@ public class Plano {
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "plano_modalidades", joinColumns = @JoinColumn(name = "plano_id"))
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "modalidade", nullable = false, length = 30)
     private Set<Modalidade> modalidades = new HashSet<>();
 

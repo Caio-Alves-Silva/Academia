@@ -7,18 +7,26 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 
-/** Usuário do sistema: aluno, recepcionista ou instrutor (diferenciados pelo {@link Perfil}). */
+/**
+ * Usuário do sistema (herança JOINED): {@link Aluno}, {@link Recepcao} ou {@link Instrutor}. O {@link Perfil} é
+ * gravado na tabela base e define o papel (role) no JWT.
+ */
 @Entity
-@Table(name = "usuarios", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_usuarios_cpf", columnNames = "cpf"),
-        @UniqueConstraint(name = "uk_usuarios_email", columnNames = "email")
+@Table(name = "usuario", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_usuario_cpf", columnNames = "cpf"),
+        @UniqueConstraint(name = "uk_usuario_email", columnNames = "email")
 })
-public class Usuario {
+@Inheritance(strategy = InheritanceType.JOINED)
+public abstract class Usuario {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,8 +35,8 @@ public class Usuario {
     @Column(nullable = false, length = 120)
     private String nome;
 
-    /** Somente dígitos. */
-    @Column(nullable = false, length = 11)
+    /** Somente dígitos (11); a coluna comporta também o formato com pontuação (14). */
+    @Column(nullable = false, length = 14)
     private String cpf;
 
     /** Sempre em minúsculas. */
@@ -39,6 +47,7 @@ public class Usuario {
     private String senhaHash;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private Perfil perfil;
 
@@ -48,7 +57,8 @@ public class Usuario {
     protected Usuario() {
     }
 
-    public Usuario(String nome, String cpf, String email, String senhaHash, Perfil perfil, LocalDateTime criadoEm) {
+    protected Usuario(String nome, String cpf, String email, String senhaHash, Perfil perfil,
+                      LocalDateTime criadoEm) {
         this.nome = nome;
         this.cpf = cpf;
         this.email = email;

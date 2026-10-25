@@ -4,7 +4,7 @@ import ifsp.edu.sistema_academia.exception.AlunoBloqueadoException;
 import ifsp.edu.sistema_academia.exception.MatriculaNaoAtivaException;
 import ifsp.edu.sistema_academia.model.Matricula;
 import ifsp.edu.sistema_academia.model.Modalidade;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
+import ifsp.edu.sistema_academia.model.StatusPagamento;
 import ifsp.edu.sistema_academia.repository.MatriculaRepository;
 import ifsp.edu.sistema_academia.repository.MensalidadeRepository;
 import ifsp.edu.sistema_academia.support.Fixtures;
@@ -51,12 +51,12 @@ class SituacaoAlunoServiceTest {
     @Test
     @DisplayName("bloqueio considera mensalidades pendentes vencidas antes de hoje - 5 dias")
     void bloqueioUsaLimiteDeCincoDias() {
-        when(mensalidadeRepository.existsByMatriculaAlunoIdAndStatusAndVencimentoBefore(
-                1L, StatusMensalidade.PENDENTE, HOJE.minusDays(5))).thenReturn(true);
+        when(mensalidadeRepository.existsByMatriculaAlunoIdAndStatusPagamentoAndVencimentoBefore(
+                1L, StatusPagamento.PENDENTE, HOJE.minusDays(5))).thenReturn(true);
 
         assertThat(service.estaBloqueado(1L)).isTrue();
-        verify(mensalidadeRepository).existsByMatriculaAlunoIdAndStatusAndVencimentoBefore(
-                1L, StatusMensalidade.PENDENTE, LocalDate.of(2026, 3, 6));
+        verify(mensalidadeRepository).existsByMatriculaAlunoIdAndStatusPagamentoAndVencimentoBefore(
+                1L, StatusPagamento.PENDENTE, LocalDate.of(2026, 3, 6));
         assertThat(service.estaBloqueado(2L)).isFalse();
     }
 
@@ -71,8 +71,8 @@ class SituacaoAlunoServiceTest {
     @Test
     void exigirLiberadoBloqueado() {
         when(matriculaRepository.findAtiva(1L, HOJE)).thenReturn(Optional.of(matricula));
-        when(mensalidadeRepository.existsByMatriculaAlunoIdAndStatusAndVencimentoBefore(
-                1L, StatusMensalidade.PENDENTE, HOJE.minusDays(5))).thenReturn(true);
+        when(mensalidadeRepository.existsByMatriculaAlunoIdAndStatusPagamentoAndVencimentoBefore(
+                1L, StatusPagamento.PENDENTE, HOJE.minusDays(5))).thenReturn(true);
 
         assertThatThrownBy(() -> service.exigirLiberado(1L)).isInstanceOf(AlunoBloqueadoException.class);
         assertThat(service.podeFrequentar(1L)).isFalse();

@@ -1,7 +1,5 @@
 package ifsp.edu.sistema_academia.model;
 
-import ifsp.edu.sistema_academia.model.Mensalidade;
-import ifsp.edu.sistema_academia.model.StatusMensalidade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,9 +28,9 @@ class MensalidadeTest {
 
         m.pagar(VENCIMENTO);
 
-        assertThat(m.getStatus()).isEqualTo(StatusMensalidade.PAGA);
+        assertThat(m.getStatusPagamento()).isEqualTo(StatusPagamento.PAGO);
         assertThat(m.getValorPago()).isEqualByComparingTo("100.00");
-        assertThat(m.getMulta()).isEqualByComparingTo("0.00");
+        assertThat(m.multaPaga()).isEqualByComparingTo("0.00");
         assertThat(m.getDataPagamento()).isEqualTo(VENCIMENTO);
     }
 
@@ -48,17 +46,17 @@ class MensalidadeTest {
 
         m.pagar(hoje);
 
-        assertThat(m.getMulta()).isEqualByComparingTo("2.60");
+        assertThat(m.multaPaga()).isEqualByComparingTo("2.60");
         assertThat(m.getValorPago()).isEqualByComparingTo("132.50");
     }
 
     @Test
     @DisplayName("a multa incide sobre o valor já descontado")
-    void multaSobreValorLiquido() {
+    void multaSobreValorDescontado() {
         Mensalidade m = mensalidade("100.00");
         m.aplicarDesconto(new BigDecimal("20.00"));
 
-        assertThat(m.valorLiquido()).isEqualByComparingTo("80.00");
+        assertThat(m.getValor()).isEqualByComparingTo("80.00");
         assertThat(m.calcularMulta(VENCIMENTO.plusDays(3))).isEqualByComparingTo("1.60");
     }
 
@@ -67,11 +65,11 @@ class MensalidadeTest {
     void descontoLimitado() {
         Mensalidade m = mensalidade("100.00");
 
-        m.aplicarDesconto(new BigDecimal("250.00"));
-        assertThat(m.getDesconto()).isEqualByComparingTo("100.00");
-
         m.aplicarDesconto(new BigDecimal("-5"));
-        assertThat(m.getDesconto()).isEqualByComparingTo("0");
+        assertThat(m.getValor()).isEqualByComparingTo("100.00");
+
+        m.aplicarDesconto(new BigDecimal("250.00"));
+        assertThat(m.getValor()).isEqualByComparingTo("0.00");
     }
 
     @Test
