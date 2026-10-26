@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Rodar Todos os Testes (144 Testes)" type="JUnit" factoryName="JUnit">
+    <module name="sistema-academia" />
+    <option name="PACKAGE_NAME" value="ifsp.edu.sistema_academia" />
+    <option name="MAIN_CLASS_NAME" value="" />
+    <option name="METHOD_NAME" value="" />
+    <option name="TEST_OBJECT" value="package" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/sistema-academia" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
